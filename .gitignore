@@ -7,3 +7,6 @@
 codex-prompt.md
 codex-output.md
 verifier-context.md
+
+# Python build artifacts
+*.egg-info/

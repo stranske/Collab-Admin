@@ -21,12 +21,12 @@ Currently only `logs/` exists with a time log template. The other directories an
 - [x] Create `logs/friction/friction_template.csv` with headers: `date,repo,context,minutes_lost,what_broke,what_was_confusing,what_fixed_it,pr_or_issue`
 - [x] Create `logs/month_end/` directory with `.gitkeep`
 - [x] Create `logs/month_end/template.md` with sections for hours summary, deliverables, reviews, expenses
-- [ ] Update `.gitignore` to exclude actual log files but not templates
+- [x] Update `.gitignore` to exclude actual log files but not templates
 
 #### Acceptance criteria
 - [x] All four log directories exist: `logs/time/`, `logs/expenses/`, `logs/friction/`, `logs/month_end/`
 - [x] Each directory has appropriate template file(s)
-- [ ] Templates match the CSV headers defined in policy docs
+- [x] Templates match the CSV headers defined in policy docs
 - [ ] CI passes
 
 <!-- auto-status-summary:end -->

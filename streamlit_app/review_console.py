@@ -63,7 +63,7 @@ def load_rubric_levels(rubric_path: Path) -> list[str]:
             return ["Poor", "Mediocre", "High", "Excellent"]
         levels = data.get("levels", [])
         if isinstance(levels, list) and levels:
-            return [str(l) for l in levels]
+            return [str(level) for level in levels]
         return ["Poor", "Mediocre", "High", "Excellent"]
     except Exception:
         return ["Poor", "Mediocre", "High", "Excellent"]

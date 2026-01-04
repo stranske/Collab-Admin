@@ -661,3 +661,25 @@ except ImportError:
     )
 except Exception as e:
     st.warning(f"GitHub integration error: {e}")
+
+# =============================================================================
+# Review Console Section
+# =============================================================================
+
+st.header("Review Console")
+
+try:
+    from streamlit_app.review_console import render_review_console
+    
+    # Get workstream names for the dropdown
+    workstream_names = [ws["name"] for ws in workstreams]
+    
+    render_review_console(
+        workstreams=workstream_names,
+        rubrics_path=Path("rubrics"),
+        reviews_path=reviews_path,
+    )
+except ImportError as e:
+    st.warning(f"Review console not available: {e}")
+except Exception as e:
+    st.warning(f"Review console error: {e}")

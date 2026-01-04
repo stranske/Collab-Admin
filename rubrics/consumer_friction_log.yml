@@ -1,0 +1,40 @@
+rubric_id: consumer_friction_log
+title: Consumer friction log
+key_question: "Does the friction log capture usability issues in the required format and drive concrete fixes?"
+levels: [Poor, Mediocre, High, Excellent]
+dimensions:
+  - id: log_format
+    name: Required format and location
+    descriptors:
+      Poor: "Log missing or not stored at logs/friction/YYYY-MM.csv."
+      Mediocre: "Log exists but columns are missing or inconsistent."
+      High: "Log uses required location and columns."
+      Excellent: "Log uses required format with consistent, complete rows."
+  - id: issue_detail
+    name: Issue detail and context
+    descriptors:
+      Poor: "Entries lack context or root cause details."
+      Mediocre: "Some context provided but missing key details or outcomes."
+      High: "Entries include context, what broke, and what fixed it."
+      Excellent: "Entries include context, impact, and clear root cause notes."
+  - id: linkage_to_prs
+    name: PR and issue linkage
+    descriptors:
+      Poor: "No linkage to PRs or issues."
+      Mediocre: "Some entries link to PRs/issues but coverage is incomplete."
+      High: "Entries link to PRs/issues with at least two friction-reducing PRs."
+      Excellent: "Entries link to PRs/issues with clear before/after outcomes."
+  - id: workflows_fixes
+    name: Workflows-level fixes
+    descriptors:
+      Poor: "No evidence of Workflows-level fixes when appropriate."
+      Mediocre: "Mentions potential Workflows fixes but lacks evidence."
+      High: "Includes evidence of Workflows-level fixes where applicable."
+      Excellent: "Shows Workflows-level fixes with verification notes."
+  - id: time_impact
+    name: Time and impact tracking
+    descriptors:
+      Poor: "Minutes lost or impact fields are missing."
+      Mediocre: "Minutes lost included but inconsistent or vague."
+      High: "Minutes lost tracked consistently with clear impact."
+      Excellent: "Time impact tracked consistently with trend insights."

@@ -1,0 +1,40 @@
+rubric_id: marketplace_implementation_plan
+title: Marketplace implementation plan
+key_question: "Does the plan define a two-week, rubric-driven path to package workflows for broader distribution?"
+levels: [Poor, Mediocre, High, Excellent]
+dimensions:
+  - id: platform_options
+    name: Platform options
+    descriptors:
+      Poor: "Only one platform option or options are unclear."
+      Mediocre: "Two options listed but missing the required current + Zapier/n8n mix."
+      High: "Includes the current approach plus Zapier or n8n."
+      Excellent: "Includes current approach plus multiple viable platform options."
+  - id: evaluation_rubric
+    name: Evaluation rubric quality
+    descriptors:
+      Poor: "No evaluation rubric or criteria are missing."
+      Mediocre: "Rubric exists but omits key criteria."
+      High: "Rubric covers time, reliability, security, maintainability, and cost."
+      Excellent: "Rubric covers required criteria with scoring guidance."
+  - id: schedule_exit_criteria
+    name: Two-week schedule and exit criteria
+    descriptors:
+      Poor: "No schedule or exit criteria."
+      Mediocre: "Schedule exists but not two weeks or lacks exit criteria."
+      High: "Two-week schedule with clear exit criteria."
+      Excellent: "Two-week schedule with milestones and measurable exit criteria."
+  - id: packaging_steps
+    name: Packaging plan detail
+    descriptors:
+      Poor: "No step-by-step packaging plan."
+      Mediocre: "High-level steps without ownership or dependencies."
+      High: "Step-by-step plan with dependencies."
+      Excellent: "Step-by-step plan with dependencies, owners, and risks."
+  - id: constraints_risks
+    name: Constraints and risks
+    descriptors:
+      Poor: "Constraints or risks are missing."
+      Mediocre: "Lists some constraints but lacks mitigation."
+      High: "Constraints and risks listed with mitigations."
+      Excellent: "Constraints, risks, and mitigations include validation steps."

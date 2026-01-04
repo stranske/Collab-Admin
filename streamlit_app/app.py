@@ -198,9 +198,11 @@ def build_weekly_cap_chart(weekly: pd.DataFrame, cap_hours: float) -> alt.Chart:
         ),
         tooltip=["week", "hours", "Status"],
     )
-    cap_rule = alt.Chart(pd.DataFrame({"Cap": [cap_hours]})).mark_rule(
-        color="#264653"
-    ).encode(y="Cap:Q")
+    cap_rule = (
+        alt.Chart(pd.DataFrame({"Cap": [cap_hours]}))
+        .mark_rule(color="#264653")
+        .encode(y="Cap:Q")
+    )
     return alt.layer(bars, cap_rule)
 
 
@@ -331,8 +333,12 @@ def load_rubric_definitions(
             errors.append(f"Rubric {rubric_path} has invalid format.")
             continue
         raw_rubric_id = data.get("rubric_id")
-        rubric_id = raw_rubric_id if isinstance(raw_rubric_id, str) else rubric_path.stem
-        dims = data.get("dimensions") if isinstance(data.get("dimensions"), list) else []
+        rubric_id = (
+            raw_rubric_id if isinstance(raw_rubric_id, str) else rubric_path.stem
+        )
+        dims = (
+            data.get("dimensions") if isinstance(data.get("dimensions"), list) else []
+        )
         dim_lookup: dict[str, str] = {}
         for dim in dims:
             if not isinstance(dim, dict):

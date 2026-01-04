@@ -5,5 +5,8 @@
 # - Workflow artifacts (full outputs)
 # - Commit messages (change descriptions)
 codex-prompt.md
+codex-prompt-*.md
 codex-output.md
+codex-output-*.md
 verifier-context.md
+logs/

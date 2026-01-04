@@ -7,7 +7,9 @@ import sys
 from pathlib import Path
 
 
-def _run_validator(path: Path | None, markdown: str | None = None) -> subprocess.CompletedProcess[str]:
+def _run_validator(
+    path: Path | None, markdown: str | None = None
+) -> subprocess.CompletedProcess[str]:
     repo_root = Path(__file__).resolve().parents[2]
     script_path = repo_root / "scripts" / "validate_submission_packet.py"
     if markdown is None:
@@ -32,7 +34,7 @@ def test_validate_submission_packet_ok(tmp_path: Path) -> None:
                 "- Issue: #123",
                 "- Workstream: Core",
                 "- Deliverables included (links/paths): scripts/validate_submission_packet.py",
-                "- How to run/test (commands + expected result): pytest tests/ -m \"not slow\"",
+                '- How to run/test (commands + expected result): pytest tests/ -m "not slow"',
                 "- Evidence (links to CI runs, logs, screenshots as needed): logs/run.txt",
             ]
         ),
@@ -54,7 +56,7 @@ def test_validate_submission_packet_missing_sections(tmp_path: Path) -> None:
                 "- Issue: #",
                 "- Workstream: Core",
                 "- Deliverables included (links/paths): scripts/validate_submission_packet.py",
-                "- How to run/test (commands + expected result): pytest tests/ -m \"not slow\"",
+                '- How to run/test (commands + expected result): pytest tests/ -m "not slow"',
             ]
         ),
         encoding="utf-8",
@@ -74,7 +76,7 @@ def test_validate_submission_packet_stdin() -> None:
             "- Issue: #77",
             "- Workstream: Ops",
             "- Deliverables: templates/submission_packet.md",
-            "- How to run/test: pytest tests/scripts/test_validate_submission_packet.py -m \"not slow\"",
+            '- How to run/test: pytest tests/scripts/test_validate_submission_packet.py -m "not slow"',
             "- Evidence: screenshots/ci.png",
         ]
     )

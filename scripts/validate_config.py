@@ -242,6 +242,12 @@ def main(argv: list[str] | None = None) -> int:
     )
     args = parser.parse_args(argv)
 
+    # Validate argument combinations
+    if args.file and not args.type:
+        raise SystemExit("Error: --type is required when providing a file argument.")
+    if args.type and not args.file:
+        raise SystemExit("Error: A file argument is required when using --type.")
+
     # Single file mode
     if args.file and args.type:
         errors = validate_single_file(Path(args.file), args.type)

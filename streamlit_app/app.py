@@ -68,7 +68,9 @@ def load_workstreams(path: Path) -> tuple[list[dict[str, str]], str | None]:
     except Exception as exc:  # pragma: no cover - runtime feedback
         return DEFAULT_WORKSTREAMS, f"Unable to read workstream config: {exc}"
 
-    workstreams = data.get("project", {}).get("workstreams") if isinstance(data, dict) else None
+    workstreams = (
+        data.get("project", {}).get("workstreams") if isinstance(data, dict) else None
+    )
     if not isinstance(workstreams, list) or not workstreams:
         return DEFAULT_WORKSTREAMS, "Workstream config missing workstreams list."
 

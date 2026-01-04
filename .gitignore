@@ -24,3 +24,11 @@ artifacts/
 autofix_report_enriched.json
 codex-session-*.jsonl
 codex-analysis-*.json
+
+# PR-specific codex files
+codex-prompt-*.md
+codex-output-*.md
+
+# Time logs (except template)
+logs/*.csv
+!logs/time_log_template.csv

@@ -1,20 +1,187 @@
 name: collab-admin-ci
+
 on:
   pull_request:
   push:
     branches: [main]
+
 jobs:
-  validate:
+  # ============================================================================
+  # YAML validation for rubric files
+  # ============================================================================
+  validate-rubrics:
+    name: Validate rubric YAML files
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - name: Validate time logs (if any)
+      - name: Install PyYAML
+        run: pip install pyyaml
+      - name: Validate rubrics
+        run: |
+          if [ -d rubrics ] && ls rubrics/*.yml 1> /dev/null 2>&1; then
+            python scripts/validate_rubrics.py rubrics/ --check-structure
+          else
+            echo "No rubric files found, skipping validation."
+          fi
+
+  # ============================================================================
+  # Config validation for required fields
+  # ============================================================================
+  validate-config:
+    name: Validate config YAML files
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install PyYAML
+        run: pip install pyyaml
+      - name: Validate project config
+        run: |
+          if [ -f config/project.yml ]; then
+            python scripts/validate_config.py config/project.yml --type project
+          else
+            echo "config/project.yml not found, skipping."
+          fi
+      - name: Validate dashboard config
+        run: |
+          if [ -f config/dashboard_public.yml ]; then
+            python scripts/validate_config.py config/dashboard_public.yml --type dashboard
+          else
+            echo "config/dashboard_public.yml not found, skipping."
+          fi
+
+  # ============================================================================
+  # Time log validation
+  # ============================================================================
+  validate-time-logs:
+    name: Validate time logs
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Validate time log template
+        run: |
+          if [ -f logs/time_log_template.csv ]; then
+            # Template validation: just check header format
+            python -c "
+import csv
+import sys
+with open('logs/time_log_template.csv') as f:
+    reader = csv.reader(f)
+    header = next(reader)
+    expected = ['date', 'hours', 'repo', 'issue_or_pr', 'category', 'description', 'artifact_link']
+    if header != expected:
+        print(f'ERROR: Template header mismatch')
+        print(f'  Expected: {expected}')
+        print(f'  Got: {header}')
+        sys.exit(1)
+    print('✓ Time log template format is valid')
+"
+          else
+            echo "logs/time_log_template.csv not found, skipping."
+          fi
+      - name: Validate submitted time logs
         run: |
           if ls logs/time/*.csv 1> /dev/null 2>&1; then
-            for f in logs/time/*.csv; do python scripts/validate_time_log.py "$f"; done
+            for f in logs/time/*.csv; do
+              echo "Validating $f..."
+              python scripts/validate_time_log.py "$f"
+            done
           else
-            echo "No time logs yet."
+            echo "No time logs in logs/time/ yet."
           fi
+
+  # ============================================================================
+  # Markdown link validation
+  # ============================================================================
+  validate-docs:
+    name: Validate documentation links
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Check internal markdown links
+        run: |
+          python << 'SCRIPT'
+          import re
+          import sys
+          from pathlib import Path
+
+          errors = []
+          link_pattern = re.compile(r'\[([^\]]+)\]\(([^)]+)\)')
+
+          for md_file in Path('.').rglob('*.md'):
+              # Skip .git and node_modules
+              if '.git' in md_file.parts or 'node_modules' in md_file.parts:
+                  continue
+              
+              content = md_file.read_text(encoding='utf-8', errors='ignore')
+              for match in link_pattern.finditer(content):
+                  link_text, link_target = match.groups()
+                  
+                  # Skip external URLs and anchors
+                  if link_target.startswith(('http://', 'https://', '#', 'mailto:')):
+                      continue
+                  
+                  # Handle anchor links in relative paths
+                  path_part = link_target.split('#')[0]
+                  if not path_part:
+                      continue
+                  
+                  # Resolve relative to the markdown file's directory
+                  target_path = md_file.parent / path_part
+                  if not target_path.exists():
+                      errors.append(f"{md_file}: broken link [{link_text}]({link_target})")
+
+          if errors:
+              print("❌ Found broken internal links:")
+              for err in errors:
+                  print(f"  {err}")
+              sys.exit(1)
+          else:
+              print("✓ All internal markdown links are valid")
+          SCRIPT
+
+  # ============================================================================
+  # Summary job for branch protection
+  # ============================================================================
+  admin-ci:
+    name: Admin CI Summary
+    needs: [validate-rubrics, validate-config, validate-time-logs, validate-docs]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check job results
+        run: |
+          rubrics="${{ needs.validate-rubrics.result }}"
+          config="${{ needs.validate-config.result }}"
+          timelogs="${{ needs.validate-time-logs.result }}"
+          docs="${{ needs.validate-docs.result }}"
+          
+          echo "## Admin CI Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Job | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|-----|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Validate Rubrics | $rubrics |" >> $GITHUB_STEP_SUMMARY
+          echo "| Validate Config | $config |" >> $GITHUB_STEP_SUMMARY
+          echo "| Validate Time Logs | $timelogs |" >> $GITHUB_STEP_SUMMARY
+          echo "| Validate Docs | $docs |" >> $GITHUB_STEP_SUMMARY
+          
+          if [ "$rubrics" != "success" ] || [ "$config" != "success" ] || \
+             [ "$timelogs" != "success" ] || [ "$docs" != "success" ]; then
+            echo ""
+            echo "❌ One or more validation jobs failed"
+            exit 1
+          fi
+          
+          echo ""
+          echo "✅ All validation jobs passed"

@@ -1,0 +1,47 @@
+rubric_id: trend_module_note
+title: Trend model module note
+key_question: "Does the module note show evidence-backed understanding of a specific Trend module's purpose, flow, and risks?"
+levels: [Poor, Mediocre, High, Excellent]
+dimensions:
+  - id: protocol_compliance
+    name: Protocol compliance
+    descriptors:
+      Poor: "No statement of no-AI compliance or indicates AI assistance was used."
+      Mediocre: "Implied compliance but no explicit attestation."
+      High: "Explicitly states no AI assistance and follows the protocol."
+      Excellent: "Explicit no-AI attestation plus brief process notes showing compliance."
+  - id: evidence_references
+    name: Evidence references coverage
+    descriptors:
+      Poor: "Missing References section or references are not in the required format."
+      Mediocre: "References exist but miss required categories or use inconsistent anchors."
+      High: "References follow the required format and cover key code anchors."
+      Excellent: "References follow the required format with why-it-matters notes and strong coverage."
+  - id: module_scope
+    name: Module purpose and boundaries
+    descriptors:
+      Poor: "Module purpose or boundaries are missing or incorrect."
+      Mediocre: "Basic purpose described but boundaries or ownership are vague."
+      High: "Clear purpose with defined boundaries and dependencies."
+      Excellent: "Precise purpose and boundaries with explicit ownership and interfaces."
+  - id: call_paths
+    name: Core call paths
+    descriptors:
+      Poor: "No call path tracing or only a high-level narrative."
+      Mediocre: "One call path traced but incomplete or loosely connected to code."
+      High: "Two or more call paths traced with code anchors."
+      Excellent: "Multiple call paths traced with precise anchors and flow rationale."
+  - id: edge_handling
+    name: Error and edge path coverage
+    descriptors:
+      Poor: "No discussion of error or edge cases."
+      Mediocre: "Mentions errors but lacks specific code paths or inputs."
+      High: "Covers multiple error/edge paths with code references."
+      Excellent: "Covers critical error/edge paths with triggering inputs and outcomes."
+  - id: data_handling
+    name: Data boundaries and parsing
+    descriptors:
+      Poor: "Ignores inputs, config, or data parsing."
+      Mediocre: "Mentions data handling but omits key boundary conditions."
+      High: "Describes core inputs/config parsing with evidence."
+      Excellent: "Maps data boundaries and parsing behavior with risks and validation notes."

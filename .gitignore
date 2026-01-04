@@ -10,3 +10,6 @@ codex-output.md
 codex-output-*.md
 verifier-context.md
 logs/
+
+# Python build artifacts
+*.egg-info/

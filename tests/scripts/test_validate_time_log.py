@@ -11,7 +11,9 @@ import pytest
 
 
 def load_module():
-    script_path = Path(__file__).resolve().parents[2] / "scripts" / "validate_time_log.py"
+    script_path = (
+        Path(__file__).resolve().parents[2] / "scripts" / "validate_time_log.py"
+    )
     spec = importlib.util.spec_from_file_location("validate_time_log", script_path)
     module = importlib.util.module_from_spec(spec)
     assert spec.loader is not None
@@ -45,9 +47,7 @@ def test_valid_log_passes(tmp_path: Path) -> None:
     path = tmp_path / "log.csv"
     write_csv(path, [base_row()])
 
-    errors = validate_time_log.validate_time_log(
-        path, today=date(2024, 1, 10)
-    )
+    errors = validate_time_log.validate_time_log(path, today=date(2024, 1, 10))
 
     assert errors == []
 
@@ -58,9 +58,7 @@ def test_invalid_category_fails(tmp_path: Path) -> None:
     row["category"] = "ops"
     write_csv(path, [row])
 
-    errors = validate_time_log.validate_time_log(
-        path, today=date(2024, 1, 10)
-    )
+    errors = validate_time_log.validate_time_log(path, today=date(2024, 1, 10))
 
     assert any("Invalid category" in err for err in errors)
 
@@ -71,9 +69,7 @@ def test_invalid_artifact_link_fails(tmp_path: Path) -> None:
     row["artifact_link"] = "https://example.com/not-github"
     write_csv(path, [row])
 
-    errors = validate_time_log.validate_time_log(
-        path, today=date(2024, 1, 10)
-    )
+    errors = validate_time_log.validate_time_log(path, today=date(2024, 1, 10))
 
     assert any("Invalid artifact_link" in err for err in errors)
 
@@ -84,9 +80,7 @@ def test_invalid_date_format_fails(tmp_path: Path) -> None:
     row["date"] = "2024/01/08"
     write_csv(path, [row])
 
-    errors = validate_time_log.validate_time_log(
-        path, today=date(2024, 1, 10)
-    )
+    errors = validate_time_log.validate_time_log(path, today=date(2024, 1, 10))
 
     assert any("Invalid date" in err for err in errors)
 
@@ -107,7 +101,9 @@ def test_date_range_checks(tmp_path: Path) -> None:
     assert any("too old" in err for err in errors)
 
 
-def test_verbose_output_in_main(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+def test_verbose_output_in_main(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
     path = tmp_path / "log.csv"
     write_csv(path, [base_row()])
 

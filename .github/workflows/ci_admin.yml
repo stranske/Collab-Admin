@@ -1,0 +1,20 @@
+name: collab-admin-ci
+on:
+  pull_request:
+  push:
+    branches: [main]
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Validate time logs (if any)
+        run: |
+          if ls logs/time/*.csv 1> /dev/null 2>&1; then
+            for f in logs/time/*.csv; do python scripts/validate_time_log.py "$f"; done
+          else
+            echo "No time logs yet."
+          fi

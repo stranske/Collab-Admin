@@ -74,7 +74,7 @@ When an issue is labeled `agent:codex`:
 ## Workflows Documentation
 
 For detailed docs, see **stranske/Workflows**:
-- `docs/INTEGRATION_GUIDE.md` - How consumer repos work
+- `.workflows-lib/docs/INTEGRATION_GUIDE.md` - How consumer repos work
 - `docs/keepalive/GoalsAndPlumbing.md` - Keepalive system design
 - `docs/keepalive/SETUP_CHECKLIST.md` - Required files and secrets
 

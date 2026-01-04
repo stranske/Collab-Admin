@@ -1,0 +1,22 @@
+project:
+  name: "Tim x Collaborator"
+  proposal_version_date: "2025-12-29"
+  automation_ecosystem:
+    workflows_repo: "stranske/Workflows"
+    integration_tests_repo: "stranske/Workflows-Integration-Tests"
+    reference_consumer_repo: "stranske/Travel-Plan-Permission"
+    template_repo: "stranske/Template"
+  constraints:
+    hours_per_week_cap: 40
+    no_banking: true
+    forks_only_month_1: true
+    trend_no_ai_assistance: true
+  workstreams:
+    - id: ws1_trend
+      name: "Trend_Model_Project"
+    - id: ws2_agents
+      name: "Agent Integration"
+    - id: ws3_consumer
+      name: "Consumer Usability"
+    - id: ws4_marketplace
+      name: "Marketplace Plan"

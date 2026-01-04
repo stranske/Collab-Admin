@@ -355,6 +355,6 @@ Human posts "@codex <instructions>" on PR
 
 ## Related Documentation
 
-- [WORKFLOWS.md](../ci/WORKFLOWS.md) - CI workflow layout
-- [AGENTS_POLICY.md](../AGENTS_POLICY.md) - Agent automation policy
-- [INTEGRATION_GUIDE.md](../INTEGRATION_GUIDE.md) - Consumer repo integration
+- [WORKFLOWS.md](../.workflows-lib/docs/ci/WORKFLOWS.md) - CI workflow layout
+- [AGENTS_POLICY.md](../.workflows-lib/docs/AGENTS_POLICY.md) - Agent automation policy
+- [INTEGRATION_GUIDE.md](../.workflows-lib/docs/INTEGRATION_GUIDE.md) - Consumer repo integration

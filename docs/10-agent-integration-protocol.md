@@ -13,7 +13,7 @@ The current ecosystem is anchored in `stranske/Workflows` and its consumer repos
 
 ## Ground truth file references (Workflows)
 
-- Agent control plane catalog and topology: `docs/ci/WORKFLOWS.md` in Workflows
+- Agent control plane catalog and topology: `../.workflows-lib/docs/ci/WORKFLOWS.md` in Workflows
 - Orchestrator entry point: `.github/workflows/agents-70-orchestrator.yml`
 - PR keepalive detection: consumer `.github/workflows/agents-pr-meta.yml` calling Workflows `reusable-20-pr-meta.yml`
 

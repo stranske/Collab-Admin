@@ -69,21 +69,7 @@ jobs:
       - name: Validate time log template
         run: |
           if [ -f logs/time_log_template.csv ]; then
-            # Template validation: just check header format
-            python -c "
-import csv
-import sys
-with open('logs/time_log_template.csv') as f:
-    reader = csv.reader(f)
-    header = next(reader)
-    expected = ['date', 'hours', 'repo', 'issue_or_pr', 'category', 'description', 'artifact_link']
-    if header != expected:
-        print(f'ERROR: Template header mismatch')
-        print(f'  Expected: {expected}')
-        print(f'  Got: {header}')
-        sys.exit(1)
-    print('✓ Time log template format is valid')
-"
+            python scripts/validate_time_log_template.py logs/time_log_template.csv
           else
             echo "logs/time_log_template.csv not found, skipping."
           fi

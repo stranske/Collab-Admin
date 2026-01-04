@@ -70,7 +70,9 @@ def _validate_project(path: Path, data: object) -> list[str]:
 
     proposal_date = project.get("proposal_version_date")
     if not isinstance(proposal_date, str) or not proposal_date.strip():
-        errors.append(f"{path}: project.proposal_version_date must be a non-empty string.")
+        errors.append(
+            f"{path}: project.proposal_version_date must be a non-empty string."
+        )
     else:
         try:
             date.fromisoformat(proposal_date)
@@ -113,9 +115,7 @@ def _validate_project(path: Path, data: object) -> list[str]:
             )
         for field in CONSTRAINT_BOOL_FIELDS:
             if field in constraints and not isinstance(constraints[field], bool):
-                errors.append(
-                    f"{path}: project.constraints.{field} must be a boolean."
-                )
+                errors.append(f"{path}: project.constraints.{field} must be a boolean.")
         for field in CONSTRAINT_INT_FIELDS:
             if field in constraints:
                 value = constraints[field]
@@ -130,14 +130,10 @@ def _validate_project(path: Path, data: object) -> list[str]:
     else:
         for idx, stream in enumerate(workstreams, start=1):
             if not isinstance(stream, dict):
-                errors.append(
-                    f"{path}: project.workstreams[{idx}] must be a mapping."
-                )
+                errors.append(f"{path}: project.workstreams[{idx}] must be a mapping.")
                 continue
             missing = [
-                field
-                for field in WORKSTREAM_REQUIRED_FIELDS
-                if field not in stream
+                field for field in WORKSTREAM_REQUIRED_FIELDS if field not in stream
             ]
             if missing:
                 errors.append(
@@ -168,9 +164,7 @@ def _validate_dashboard(path: Path, data: object) -> list[str]:
 
     missing = [field for field in DASHBOARD_REQUIRED_FIELDS if field not in dashboard]
     if missing:
-        return [
-            f"{path}: missing required dashboard fields: {', '.join(missing)}."
-        ]
+        return [f"{path}: missing required dashboard fields: {', '.join(missing)}."]
 
     errors: list[str] = []
     errors.extend(_validate_non_empty_str(path, "dashboard.mode", dashboard["mode"]))

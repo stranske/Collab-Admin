@@ -220,3 +220,6 @@ After 3 failures, keepalive pauses and adds `needs-human`:
 ## License
 
 MIT License - see [LICENSE](LICENSE) for details.
+# CI Setup Test
+
+This PR tests the Gate workflow configuration.

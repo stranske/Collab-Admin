@@ -75,7 +75,7 @@ def test_validate_config_ok(tmp_path: Path) -> None:
     result = _run_validator(project_path, dashboard_path)
 
     assert result.returncode == 0
-    assert "OK" in result.stdout
+    assert "Config validation passed" in result.stdout
 
 
 def test_validate_config_missing_required_fields(tmp_path: Path) -> None:

@@ -1,0 +1,26 @@
+rubric_id: writing_quality
+title: Writing quality (applies to all memos)
+key_question: "Is this memo rigorous, precise, logically structured, and concise without bloat?"
+levels: [Poor, Mediocre, High, Excellent]
+dimensions:
+  - id: rigor
+    name: Rigor of analysis
+    descriptors:
+      Poor: "Mostly narrative; weak reasoning; claims not supported."
+      Mediocre: "Some analysis, but conclusions are under-justified."
+      High: "Clear analysis with evidence; considers edge cases."
+      Excellent: "Evidence-driven, falsifiable reasoning; assumptions explicit; strong synthesis."
+  - id: precision
+    name: Precision and correctness
+    descriptors:
+      Poor: "Ambiguous and/or incorrect technical claims."
+      Mediocre: "Frequent imprecision; unclear scope."
+      High: "Mostly precise; minor slips do not mislead."
+      Excellent: "Consistently precise; distinguishes known vs inferred; no hand-waving."
+  - id: concision
+    name: Structure and conciseness
+    descriptors:
+      Poor: "Disorganized, bloated, hard to follow."
+      Mediocre: "Some structure; repetition; too long for value."
+      High: "Good structure; minor redundancy."
+      Excellent: "Tight structure; no redundancy; length matches purpose; easy to scan."

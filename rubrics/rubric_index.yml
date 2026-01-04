@@ -1,0 +1,11 @@
+rubrics:
+  - trend_subsystem_brief.yml
+  - trend_module_note.yml
+  - trend_risk_register.yml
+  - trend_walkthrough.yml
+  - writing_quality.yml
+  - agent_output_contract.yml
+  - agent_integration.yml
+  - consumer_project_proposal.yml
+  - consumer_friction_log.yml
+  - marketplace_implementation_plan.yml

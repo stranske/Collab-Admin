@@ -1,38 +1,24 @@
 <!-- pr-preamble:start -->
-> **Source:** Issue #9
+> **Source:** Issue #13
 
 <!-- pr-preamble:end -->
 
 <!-- auto-status-summary:start -->
 ## Automated Status Summary
 #### Scope
-The Collab-Admin repository needs to be initialized as the control plane for the collaboration project. This repo will manage policies, protocols, rubrics, submission templates, review records, time/expense logs, dashboards, and validation scripts.
-
-According to the starter kit README, this repo should be created by layering the starter kit files onto the stranske/Template structure (which is already in place) to leverage the shared automation library from stranske/Workflows for Gate CI, keepalive, autofix, etc.
+The review workflow (docs/06-review-workflow.md) specifies review records should be stored in `reviews/YYYY-MM/...yaml`. The directory structure and template files need to be created.
 
 #### Tasks
-- [x] Copy starter kit docs/ folder to repository root
-- [x] Copy rubrics/ folder with rubric_index.yml and writing_quality.yml
-- [x] Copy templates/ folder with submission_packet.md
-- [x] Set up streamlit_app/ directory with app.py
-- [x] Set up dashboards/public/ structure
-- [x] Copy scripts/ folder with validation scripts
-- [x] Integrate .github/workflows/ci_admin.yml and build_dashboard.yml
-- [x] Update repository README.md with Collab-Admin specific content
-- [x] Add config/ folder with project.yml and dashboard_public.yml
-- [x] Create placeholder directories: reviews/, logs/
-- [x] Update .gitignore for logs and review artifacts
-- [x] Verify all references in docs point to correct paths
+- [ ] Create `reviews/.gitkeep` to ensure directory exists
+- [ ] Create `reviews/README.md` explaining review record format
+- [ ] Create `templates/review_record.yml` - Template for individual review records
+- [ ] Create `scripts/create_review_record.py` - Script to generate review record stubs from PR data
 
 #### Acceptance criteria
-- [x] - Repository contains all starter kit folders (docs/, rubrics/, templates/, scripts/, streamlit_app/, dashboards/, config/)
-- [x] - README.md clearly explains the Collab-Admin purpose and structure
-- [ ] - All documentation files are accessible and properly formatted
-- [x] - Validation scripts are executable
-- [ ] - Workflow files integrate with existing Gate/CI system
-- [x] - Charter (docs/00-charter.md) is present and accurate
-- [x] - Operating model (docs/01-operating-model.md) reflects the collaboration structure
-- [x] - Rubrics system is documented and ready for use
-- [x] - Submission packet template is ready for PR submissions
+- [ ] `reviews/` directory exists and is tracked in git
+- [ ] Review record template includes: pr_number, reviewer, date, workstream, rubric_used, dimension_ratings, feedback, follow_up_issues
+- [ ] Script can generate a review record stub given a PR number
+- [ ] README documents the review record format and workflow
+- [ ] Script is executable and passes lint checks
 
 <!-- auto-status-summary:end -->

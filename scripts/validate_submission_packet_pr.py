@@ -21,7 +21,6 @@ from validate_submission_packet import (
     validate_submission_packet_text,
 )
 
-
 LINK_RE = re.compile(r"\[([^\]]+)\]\(([^)]+)\)")
 PATH_RE = re.compile(r"(?P<path>[\w./-]*submission_packet\.md)", re.IGNORECASE)
 
@@ -92,9 +91,7 @@ def _load_pr_body(event_path: Path) -> tuple[str | None, list[str]]:
 def validate_pr_submission_packet(body: str, repo_root: Path) -> list[str]:
     errors: list[str] = []
     if _body_has_section_labels(body):
-        errors.extend(
-            validate_submission_packet_text(body, source="PR description")
-        )
+        errors.extend(validate_submission_packet_text(body, source="PR description"))
         if not errors:
             return []
     candidates = _find_candidate_paths(body)

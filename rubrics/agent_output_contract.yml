@@ -1,0 +1,40 @@
+rubric_id: agent_output_contract
+title: Agent output contract
+key_question: "Does the agent output contract define stable, machine-readable results, artifacts, and safety expectations that keep keepalive/verifier agent-agnostic?"
+levels: [Poor, Mediocre, High, Excellent]
+dimensions:
+  - id: machine_readable_result
+    name: Machine-readable result object
+    descriptors:
+      Poor: "No structured result object or fields are inconsistent across runs."
+      Mediocre: "Partial structure, but fields are missing or semantics vary by agent."
+      High: "Consistent result object with clear pass/fail and summary fields."
+      Excellent: "Fully specified schema with validation rules and examples across agents."
+  - id: artifact_naming
+    name: Stable artifact and filename contract
+    descriptors:
+      Poor: "Artifact filenames vary or are undocumented; outputs are hard to locate."
+      Mediocre: "Some naming guidance but missing required files or stability guarantees."
+      High: "Required artifacts and filenames are stable and documented."
+      Excellent: "Artifact contract includes versioning, locations, and backward compatibility notes."
+  - id: integration_compatibility
+    name: Compatibility with keepalive and verifier
+    descriptors:
+      Poor: "Requires per-agent special casing or manual interpretation."
+      Mediocre: "Mostly compatible but needs ad hoc handling for edge cases."
+      High: "Compatible with existing workflows without special cases."
+      Excellent: "Proves compatibility via tests or fixtures in integration coverage."
+  - id: safety_logging
+    name: Safety and logging constraints
+    descriptors:
+      Poor: "No mention of secrets or logging constraints; risk of leaking sensitive data."
+      Mediocre: "Mentions constraints but lacks enforceable requirements."
+      High: "Explicit rules for no secrets in logs and redaction expectations."
+      Excellent: "Clear safety requirements plus enforcement/validation steps."
+  - id: documentation_readiness
+    name: Documentation and onboarding readiness
+    descriptors:
+      Poor: "Contract is undocumented or missing onboarding guidance."
+      Mediocre: "Basic documentation but unclear for new agent integrators."
+      High: "Docs enable a new agent to implement the contract with minimal help."
+      Excellent: "Docs-first walkthrough with checklists and troubleshooting notes."

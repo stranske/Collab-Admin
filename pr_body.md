@@ -9,11 +9,11 @@
 The rubric_index.yml lists 10 rubrics but only writing_quality.yml exists. Each workstream needs its rubric files to enable structured review workflows.
 
 #### Tasks
-- [ ] Create `rubrics/trend_subsystem_brief.yml` - For trend model subsystem documentation
+- [x] Create `rubrics/trend_subsystem_brief.yml` - For trend model subsystem documentation
 - [ ] Create `rubrics/trend_module_note.yml` - For trend model module notes
 - [ ] Create `rubrics/trend_risk_register.yml` - For trend model risk documentation
 - [ ] Create `rubrics/trend_walkthrough.yml` - For trend model walkthrough presentations
-- [ ] Create `rubrics/agent_output_contract.yml` - For agent integration output specs
+- [x] Create `rubrics/agent_output_contract.yml` - For agent integration output specs
 - [ ] Create `rubrics/agent_integration.yml` - For agent integration deliverables
 - [ ] Create `rubrics/consumer_project_proposal.yml` - For consumer usability proposals
 - [ ] Create `rubrics/consumer_friction_log.yml` - For consumer friction logging

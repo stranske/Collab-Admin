@@ -670,10 +670,10 @@ st.header("Review Console")
 
 try:
     from streamlit_app.review_console import render_review_console
-    
+
     # Get workstream names for the dropdown
     workstream_names = [ws["name"] for ws in workstreams]
-    
+
     render_review_console(
         workstreams=workstream_names,
         rubrics_path=Path("rubrics"),

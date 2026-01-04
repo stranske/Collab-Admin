@@ -5,11 +5,11 @@ from __future__ import annotations
 import base64
 import hashlib
 import os
-from pathlib import Path
 import re
 import tempfile
 import tomllib
 import zipfile
+from pathlib import Path
 
 
 def _project_root() -> Path:
@@ -63,7 +63,9 @@ def _write_metadata(
         metadata_lines.append(f"Provides-Extra: {extra}")
         for requirement in requirements:
             metadata_lines.append(f'Requires-Dist: {requirement}; extra == "{extra}"')
-    (dist_info_dir / "METADATA").write_text("\n".join(metadata_lines) + "\n", encoding="utf-8")
+    (dist_info_dir / "METADATA").write_text(
+        "\n".join(metadata_lines) + "\n", encoding="utf-8"
+    )
     (dist_info_dir / "WHEEL").write_text(
         "\n".join(
             [
@@ -96,7 +98,9 @@ def _collect_paths(root: Path) -> list[Path]:
 
 
 def _build_wheel(wheel_directory: str, *, editable: bool) -> str:
-    name, version, description, requires_python, dependencies, optional_deps = _project_metadata()
+    name, version, description, requires_python, dependencies, optional_deps = (
+        _project_metadata()
+    )
     dist = _normalize_dist_name(name)
     wheel_name = f"{dist}-{version}-py3-none-any.whl"
     wheel_dir = Path(wheel_directory)
@@ -106,7 +110,13 @@ def _build_wheel(wheel_directory: str, *, editable: bool) -> str:
         tmp_path = Path(tmp_dir)
         dist_info_dir = tmp_path / _dist_info_name(name, version)
         _write_metadata(
-            dist_info_dir, name, version, description, requires_python, dependencies, optional_deps
+            dist_info_dir,
+            name,
+            version,
+            description,
+            requires_python,
+            dependencies,
+            optional_deps,
         )
 
         records: list[tuple[str, str, int]] = []
@@ -145,11 +155,19 @@ def _build_wheel(wheel_directory: str, *, editable: bool) -> str:
 
 
 def _prepare_metadata(metadata_directory: str) -> str:
-    name, version, description, requires_python, dependencies, optional_deps = _project_metadata()
+    name, version, description, requires_python, dependencies, optional_deps = (
+        _project_metadata()
+    )
     dist_info_name = _dist_info_name(name, version)
     dist_info_dir = Path(metadata_directory) / dist_info_name
     _write_metadata(
-        dist_info_dir, name, version, description, requires_python, dependencies, optional_deps
+        dist_info_dir,
+        name,
+        version,
+        description,
+        requires_python,
+        dependencies,
+        optional_deps,
     )
     record_path = dist_info_dir / "RECORD"
     record_path.write_text("", encoding="utf-8")
@@ -181,12 +199,16 @@ def prepare_metadata_for_build_editable(
 
 
 def build_wheel(
-    wheel_directory: str, config_settings: dict | None = None, metadata_directory: str | None = None
+    wheel_directory: str,
+    config_settings: dict | None = None,
+    metadata_directory: str | None = None,
 ) -> str:
     return _build_wheel(wheel_directory, editable=False)
 
 
 def build_editable(
-    wheel_directory: str, config_settings: dict | None = None, metadata_directory: str | None = None
+    wheel_directory: str,
+    config_settings: dict | None = None,
+    metadata_directory: str | None = None,
 ) -> str:
     return _build_wheel(wheel_directory, editable=True)

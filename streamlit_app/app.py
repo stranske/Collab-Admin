@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import altair as alt
 import pandas as pd
 import streamlit as st
 
@@ -45,6 +46,8 @@ WORKSTREAM_DELIVERABLES = {
         "Two-week execution schedule with exit criteria",
     ],
 }
+
+WEEKLY_CAP_HOURS = 40
 
 
 def load_yaml_module() -> tuple[object | None, str | None]:
@@ -172,6 +175,46 @@ def aggregate_time_log(df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
     return weekly, monthly
 
 
+def add_weekly_cap(weekly: pd.DataFrame, cap_hours: float) -> pd.DataFrame:
+    capped = weekly.copy()
+    capped["Cap hours"] = cap_hours
+    capped["Remaining"] = (cap_hours - capped["hours"]).round(1)
+    capped["Status"] = capped["hours"].apply(
+        lambda hours: "Over cap" if hours > cap_hours else "Within cap"
+    )
+    return capped
+
+
+def build_weekly_cap_chart(weekly: pd.DataFrame, cap_hours: float) -> alt.Chart:
+    base = alt.Chart(weekly).encode(x=alt.X("week:N", title="Week"))
+    bars = base.mark_bar().encode(
+        y=alt.Y("hours:Q", title="Hours"),
+        color=alt.Color(
+            "Status:N",
+            scale=alt.Scale(
+                domain=["Within cap", "Over cap"], range=["#2a9d8f", "#e76f51"]
+            ),
+            legend=alt.Legend(title="Cap status"),
+        ),
+        tooltip=["week", "hours", "Status"],
+    )
+    cap_rule = alt.Chart(pd.DataFrame({"Cap": [cap_hours]})).mark_rule(
+        color="#264653"
+    ).encode(y="Cap:Q")
+    return alt.layer(bars, cap_rule)
+
+
+def is_numeric_string(value: str) -> bool:
+    stripped = value.strip()
+    if not stripped:
+        return False
+    try:
+        float(stripped)
+    except ValueError:
+        return False
+    return True
+
+
 def strip_numeric_values(value: object) -> object | None:
     if value is None:
         return None
@@ -190,6 +233,11 @@ def strip_numeric_values(value: object) -> object | None:
         for key, item in value.items():
             if isinstance(key, str) and key.lower() in {"score", "scores", "points"}:
                 continue
+            if isinstance(key, str) and key.lower() in {"rating", "ratings"}:
+                if isinstance(item, (int, float)):
+                    continue
+                if isinstance(item, str) and is_numeric_string(item):
+                    continue
             cleaned_item = strip_numeric_values(item)
             if cleaned_item is not None:
                 cleaned[key] = cleaned_item
@@ -234,6 +282,104 @@ def load_review_records(path: Path) -> tuple[list[dict[str, object]], list[str]]
     return records, errors
 
 
+def load_rubric_index(path: Path) -> tuple[list[Path], list[str]]:
+    if not path.exists():
+        return [], [f"Rubric index not found at {path}."]
+
+    yaml_module, yaml_error = load_yaml_module()
+    if yaml_error:
+        return [], [yaml_error]
+
+    try:
+        data = yaml_module.safe_load(path.read_text(encoding="utf-8"))
+    except Exception as exc:  # pragma: no cover - runtime feedback
+        return [], [f"Unable to read rubric index: {exc}"]
+
+    entries = data.get("rubrics") if isinstance(data, dict) else None
+    if not isinstance(entries, list) or not entries:
+        return [], ["Rubric index missing list."]
+
+    rubric_paths = []
+    for entry in entries:
+        if isinstance(entry, str):
+            rubric_paths.append(path.parent / entry)
+    return rubric_paths, []
+
+
+def load_rubric_definitions(
+    rubric_paths: list[Path],
+) -> tuple[dict[str, dict[str, dict[str, str]]], list[str]]:
+    if not rubric_paths:
+        return {}, []
+
+    yaml_module, yaml_error = load_yaml_module()
+    if yaml_error:
+        return {}, [yaml_error]
+
+    errors: list[str] = []
+    definitions: dict[str, dict[str, dict[str, str]]] = {}
+    for rubric_path in rubric_paths:
+        if not rubric_path.exists():
+            errors.append(f"Rubric not found at {rubric_path}.")
+            continue
+        try:
+            data = yaml_module.safe_load(rubric_path.read_text(encoding="utf-8"))
+        except Exception as exc:  # pragma: no cover - runtime feedback
+            errors.append(f"Unable to read rubric {rubric_path}: {exc}")
+            continue
+        if not isinstance(data, dict):
+            errors.append(f"Rubric {rubric_path} has invalid format.")
+            continue
+        raw_rubric_id = data.get("rubric_id")
+        rubric_id = raw_rubric_id if isinstance(raw_rubric_id, str) else rubric_path.stem
+        dims = data.get("dimensions") if isinstance(data.get("dimensions"), list) else []
+        dim_lookup: dict[str, str] = {}
+        for dim in dims:
+            if not isinstance(dim, dict):
+                continue
+            dim_id = dim.get("id")
+            dim_name = dim.get("name")
+            if isinstance(dim_id, str) and isinstance(dim_name, str):
+                dim_lookup[dim_id] = dim_name
+        definitions[rubric_id] = {"dimensions": dim_lookup}
+    return definitions, errors
+
+
+def aggregate_dimension_ratings(
+    review_records: list[dict[str, object]],
+    rubric_definitions: dict[str, dict[str, dict[str, str]]],
+) -> pd.DataFrame:
+    rows: list[dict[str, str]] = []
+    for record in review_records:
+        data = record.get("data")
+        if not isinstance(data, dict):
+            continue
+        ratings = data.get("dimension_ratings")
+        if not isinstance(ratings, list):
+            continue
+        rubric_used = data.get("rubric_used")
+        rubric_key = rubric_used if isinstance(rubric_used, str) else ""
+        dim_lookup = rubric_definitions.get(rubric_key, {}).get("dimensions", {})
+        for rating in ratings:
+            if not isinstance(rating, dict):
+                continue
+            dim_id = rating.get("dimension")
+            rating_value = rating.get("rating")
+            if not isinstance(dim_id, str) or not isinstance(rating_value, str):
+                continue
+            if is_numeric_string(rating_value):
+                continue
+            dimension_name = dim_lookup.get(dim_id, dim_id)
+            rows.append({"Dimension": dimension_name, "Rating": rating_value})
+
+    if not rows:
+        return pd.DataFrame()
+
+    df = pd.DataFrame(rows)
+    summary = df.groupby(["Dimension", "Rating"], as_index=False).size()
+    return summary.rename(columns={"size": "Count"})
+
+
 def extract_text_section(record: dict[str, object], keys: list[str]) -> object | None:
     data = record.get("data")
     if not isinstance(data, dict):
@@ -259,6 +405,16 @@ else:
     st.subheader("Weekly totals")
     st.dataframe(weekly_totals, use_container_width=True)
     st.bar_chart(weekly_totals.set_index("week"))
+    st.subheader("Weekly cap (40 hours)")
+    weekly_with_cap = add_weekly_cap(weekly_totals, WEEKLY_CAP_HOURS)
+    st.dataframe(
+        weekly_with_cap[["week", "hours", "Cap hours", "Remaining", "Status"]],
+        use_container_width=True,
+    )
+    st.altair_chart(
+        build_weekly_cap_chart(weekly_with_cap, WEEKLY_CAP_HOURS),
+        use_container_width=True,
+    )
     st.subheader("Monthly totals")
     st.dataframe(monthly_totals, use_container_width=True)
     st.bar_chart(monthly_totals.set_index("month"))
@@ -293,7 +449,7 @@ if review_records:
         st.subheader(Path(record["path"]).name)
         feedback = extract_text_section(record, ["feedback", "summary", "notes"])
         follow_ups = extract_text_section(
-            record, ["follow_ups", "followups", "actions"]
+            record, ["follow_up_issues", "follow_ups", "followups", "actions"]
         )
         if feedback:
             st.markdown("**Feedback**")
@@ -303,3 +459,29 @@ if review_records:
             st.write(follow_ups)
         st.markdown("**Details (scores removed)**")
         st.json(record["data"])
+
+st.header("Rubric Dimension Distribution")
+rubric_paths, rubric_index_errors = load_rubric_index(Path("rubrics/rubric_index.yml"))
+rubric_definitions, rubric_load_errors = load_rubric_definitions(rubric_paths)
+for message in rubric_index_errors + rubric_load_errors:
+    st.info(message)
+
+if not review_records:
+    st.info("No review records available to summarize rubric ratings.")
+else:
+    rating_summary = aggregate_dimension_ratings(review_records, rubric_definitions)
+    if rating_summary.empty:
+        st.info("No rubric dimension ratings found in review records.")
+    else:
+        chart = (
+            alt.Chart(rating_summary)
+            .mark_bar()
+            .encode(
+                x=alt.X("Dimension:N", sort="-y", title="Dimension"),
+                y=alt.Y("Count:Q", title="Ratings count"),
+                color=alt.Color("Rating:N", title="Rating"),
+                tooltip=["Dimension", "Rating", "Count"],
+            )
+        )
+        st.altair_chart(chart, use_container_width=True)
+        st.dataframe(rating_summary, use_container_width=True)

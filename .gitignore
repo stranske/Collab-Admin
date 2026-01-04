@@ -7,9 +7,6 @@
 codex-prompt.md
 codex-output.md
 verifier-context.md
-logs/*
-!logs/.gitkeep
-!logs/time_log_template.csv
 
 # Python build artifacts
 *.egg-info/

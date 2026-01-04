@@ -29,6 +29,12 @@ codex-analysis-*.json
 codex-prompt-*.md
 codex-output-*.md
 
-# Time logs (except template)
-logs/*.csv
+# Logs (except templates)
+logs/time/*.csv
+logs/expenses/*.csv
+logs/friction/*.csv
+logs/month_end/*.md
 !logs/time_log_template.csv
+!logs/expenses/expense_template.csv
+!logs/friction/friction_template.csv
+!logs/month_end/template.md

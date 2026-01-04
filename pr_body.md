@@ -1,27 +1,32 @@
 <!-- pr-preamble:start -->
-> **Source:** Issue #16
+> **Source:** Issue #39
 
 <!-- pr-preamble:end -->
 
 <!-- auto-status-summary:start -->
 ## Automated Status Summary
 #### Scope
-The `.github/workflows/ci_admin.yml` is a stub workflow. It needs jobs to validate Collab-Admin specific files like rubrics, review records, and time logs.
+The collaboration policies define several log types that need directory infrastructure:
+- Time logs: `logs/time/YYYY-MM.csv` (per docs/04-time-tracking-policy.md)
+- Expense logs: `logs/expenses/YYYY-MM.csv` (per docs/07-compensation-expenses.md)
+- Friction logs: `logs/friction/YYYY-MM.csv` (per docs/11-consumer-usability-protocol.md)
+- Month-end memos: `logs/month_end/YYYY-MM.md` (per docs/08-month-end-settlement.md)
+
+Currently only `logs/` exists with a time log template. The other directories and templates are missing.
 
 #### Tasks
-- [x] Add job to validate all YAML files in `rubrics/` are parseable
-- [x] Add job to validate rubric files have required structure (rubric_id, title, levels, dimensions)
-- [ ] Add job to validate `config/project.yml` and `config/dashboard_public.yml` schemas
-- [ ] Add job to lint markdown files in `docs/` for broken links
-- [ ] Add job to validate time log template format if `logs/time_log_template.csv` exists
-- [ ] Ensure all validation jobs report clear error messages
+- [ ] Create `logs/expenses/` directory with `.gitkeep`
+- [ ] Create `logs/expenses/expense_template.csv` with headers: `date,amount,currency,category,description,receipt_link,issue_or_pr,preapproval_link`
+- [ ] Create `logs/friction/` directory with `.gitkeep`
+- [ ] Create `logs/friction/friction_template.csv` with headers: `date,repo,context,minutes_lost,what_broke,what_was_confusing,what_fixed_it,pr_or_issue`
+- [ ] Create `logs/month_end/` directory with `.gitkeep`
+- [ ] Create `logs/month_end/template.md` with sections for hours summary, deliverables, reviews, expenses
+- [ ] Update `.gitignore` to exclude actual log files but not templates
 
 #### Acceptance criteria
-- [ ] ci_admin.yml runs on pull_request events
-- [x] YAML validation job catches malformed rubric files
-- [ ] Config validation job ensures required fields exist
-- [ ] Markdown lint job reports broken internal links
-- [ ] All jobs use appropriate Python version and dependencies
-- [ ] Workflow passes when all files are valid
+- [ ] All four log directories exist: `logs/time/`, `logs/expenses/`, `logs/friction/`, `logs/month_end/`
+- [ ] Each directory has appropriate template file(s)
+- [ ] Templates match the CSV headers defined in policy docs
+- [ ] CI passes
 
 <!-- auto-status-summary:end -->

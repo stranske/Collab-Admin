@@ -10,14 +10,14 @@ The rubric_index.yml lists 10 rubrics but only writing_quality.yml exists. Each 
 
 #### Tasks
 - [x] Create `rubrics/trend_subsystem_brief.yml` - For trend model subsystem documentation
-- [ ] Create `rubrics/trend_module_note.yml` - For trend model module notes
-- [ ] Create `rubrics/trend_risk_register.yml` - For trend model risk documentation
-- [ ] Create `rubrics/trend_walkthrough.yml` - For trend model walkthrough presentations
-- [x] Create `rubrics/agent_output_contract.yml` - For agent integration output specs
-- [ ] Create `rubrics/agent_integration.yml` - For agent integration deliverables
-- [ ] Create `rubrics/consumer_project_proposal.yml` - For consumer usability proposals
-- [ ] Create `rubrics/consumer_friction_log.yml` - For consumer friction logging
-- [ ] Create `rubrics/marketplace_implementation_plan.yml` - For marketplace plans
+- [x] Create `rubrics/trend_module_note.yml` - For trend model module notes
+- [x] Create `rubrics/trend_risk_register.yml` - For trend model risk documentation
+- [x] Create `rubrics/trend_walkthrough.yml` - For trend model walkthrough presentations
+- [ ] Create `rubrics/agent_output_contract.yml` - For agent integration output specs
+- [x] Create `rubrics/agent_integration.yml` - For agent integration deliverables
+- [x] Create `rubrics/consumer_project_proposal.yml` - For consumer usability proposals
+- [x] Create `rubrics/consumer_friction_log.yml` - For consumer friction logging
+- [x] Create `rubrics/marketplace_implementation_plan.yml` - For marketplace plans
 
 #### Acceptance criteria
 - [ ] All 9 rubric files exist in `rubrics/` directory

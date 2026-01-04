@@ -177,6 +177,23 @@ def _validate_dashboard(path: Path, data: object) -> list[str]:
     return errors
 
 
+def validate_single_file(path: Path, config_type: str) -> list[str]:
+    """Validate a single config file of the specified type."""
+    if not path.exists():
+        return [f"{path}: file does not exist."]
+
+    data, parse_error = _load_yaml(path)
+    if parse_error:
+        return [parse_error]
+
+    if config_type == "project":
+        return _validate_project(path, data)
+    elif config_type == "dashboard":
+        return _validate_dashboard(path, data)
+    else:
+        return [f"Unknown config type: {config_type}"]
+
+
 def validate_configs(project_path: Path, dashboard_path: Path) -> list[str]:
     errors: list[str] = []
     if not project_path.exists():
@@ -204,6 +221,16 @@ def validate_configs(project_path: Path, dashboard_path: Path) -> list[str]:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Validate configuration YAML files.")
     parser.add_argument(
+        "file",
+        nargs="?",
+        help="Path to a single config file to validate (use with --type).",
+    )
+    parser.add_argument(
+        "--type",
+        choices=["project", "dashboard"],
+        help="Type of config file when validating a single file.",
+    )
+    parser.add_argument(
         "--project-path",
         default="config/project.yml",
         help="Path to the project config (default: config/project.yml).",
@@ -215,14 +242,20 @@ def main(argv: list[str] | None = None) -> int:
     )
     args = parser.parse_args(argv)
 
-    errors = validate_configs(Path(args.project_path), Path(args.dashboard_path))
+    # Single file mode
+    if args.file and args.type:
+        errors = validate_single_file(Path(args.file), args.type)
+    # Full validation mode
+    else:
+        errors = validate_configs(Path(args.project_path), Path(args.dashboard_path))
+
     if errors:
         message = "Config validation failed:\n" + "\n".join(
             f"- {error}" for error in errors
         )
         raise SystemExit(message)
 
-    print("OK")
+    print("✓ Config validation passed")
     return 0
 
 

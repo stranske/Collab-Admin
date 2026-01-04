@@ -1,27 +1,26 @@
 <!-- pr-preamble:start -->
-> **Source:** Issue #17
+> **Source:** Issue #14
 
 <!-- pr-preamble:end -->
 
 <!-- auto-status-summary:start -->
 ## Automated Status Summary
 #### Scope
-The `pyproject.toml` contains template placeholder values (name="my-project", generic URLs). It needs to be updated with Collab-Admin specific configuration.
+The streamlit_app/app.py is a placeholder. The collaboration needs a private dashboard to visualize review records, time tracking, and workstream progress.
 
 #### Tasks
-- [x] Update `pyproject.toml` project name from "my-project" to "collab-admin"
-- [x] Update `pyproject.toml` description to match Collab-Admin purpose
-- [x] Update `pyproject.toml` homepage and repository URLs to stranske/Collab-Admin
-- [x] Update `pyproject.toml` known-first-party from "my_project" to "collab_admin"
-- [x] Add PR-specific codex patterns to .gitignore: `codex-prompt-*.md`, `codex-output-*.md`
-- [x] Add `logs/` directory pattern to .gitignore (keep time logs private)
-- [x] Add streamlit dependency to pyproject.toml optional-dependencies
+- [x] Add time log loading from `logs/time_log.csv` with weekly/monthly aggregations
+- [x] Add review record loading from `reviews/` YAML files
+- [x] Create workstream progress overview showing completion by workstream
+- [x] Create time tracking summary with weekly caps visualization
+- [x] Add rubric dimension distribution charts (no numeric scores published)
+- [x] Add requirements.txt or update pyproject.toml with streamlit dependencies
 
 #### Acceptance criteria
-- [x] `pyproject.toml` name field is "collab-admin"
-- [x] `pyproject.toml` URLs point to stranske/Collab-Admin
-- [x] `.gitignore` includes PR-specific codex patterns
-- [x] `.gitignore` includes `logs/*.csv` or `logs/` pattern (excluding template)
-- [ ] `pip install -e ".[dev]"` succeeds without errors
+- [x] Dashboard loads without errors when `streamlit run streamlit_app/app.py` is executed
+- [x] Time tracking view shows hours by week with 40hr cap indicator
+- [ ] Workstream view shows deliverable completion status
+- [ ] Review records display feedback and follow-ups (not numeric scores)
+- [x] App gracefully handles missing/empty data files
 
 <!-- auto-status-summary:end -->

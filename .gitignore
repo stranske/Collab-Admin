@@ -1,12 +1,26 @@
-# Codex working files (preserved via workflow artifacts, not git)
-# These files are rebuilt each run and would cause merge conflicts
-# if multiple PRs commit them. Historical data is preserved in:
-# - PR comments (completion summaries)
-# - Workflow artifacts (full outputs)
-# - Commit messages (change descriptions)
-codex-prompt.md
-codex-output.md
-verifier-context.md
-
-# Python build artifacts
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
 *.egg-info/
+dist/
+build/
+.venv/
+
+# Test/coverage artifacts
+.coverage
+coverage.xml
+coverage.json
+pytest-junit.xml
+htmlcov/
+artifacts/
+
+# Tool caches
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+
+# Agent/automation scratch (keep out of git)
+autofix_report_enriched.json
+codex-session-*.jsonl
+codex-analysis-*.json

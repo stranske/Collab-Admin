@@ -1,0 +1,40 @@
+rubric_id: agent_integration
+title: Agent integration deliverables
+key_question: "Does the integration add required agents with a stable output contract and docs that enable future additions?"
+levels: [Poor, Mediocre, High, Excellent]
+dimensions:
+  - id: integration_scope
+    name: Required agents integrated
+    descriptors:
+      Poor: "No new agent integrated or integration is incomplete."
+      Mediocre: "Only one required agent integrated."
+      High: "Claude Code and one additional agent integrated."
+      Excellent: "Claude Code and a third agent integrated with parity features."
+  - id: output_contract_alignment
+    name: Output contract alignment
+    descriptors:
+      Poor: "No stable output contract or contract conflicts with existing workflows."
+      Mediocre: "Partial contract but missing machine-readable results or stable filenames."
+      High: "Contract matches machine-readable results and stable filenames."
+      Excellent: "Contract is fully specified, versioned, and validated across agents."
+  - id: workflows_testability
+    name: Workflows-Integration-Tests readiness
+    descriptors:
+      Poor: "Integration cannot be tested in Workflows-Integration-Tests."
+      Mediocre: "Some coverage but key paths are not testable."
+      High: "Integration is testable in Workflows-Integration-Tests."
+      Excellent: "Integration includes fixtures or tests that prove compatibility."
+  - id: docs_first
+    name: Docs-first integration guide
+    descriptors:
+      Poor: "No documentation or docs omit key steps."
+      Mediocre: "Docs exist but are incomplete for a new agent."
+      High: "Docs enable a new agent to be added with minimal help."
+      Excellent: "Docs include checklists, troubleshooting, and validation steps."
+  - id: safety_logging
+    name: No-secrets logging compliance
+    descriptors:
+      Poor: "Logging can leak secrets or lacks constraints."
+      Mediocre: "Mentions constraints but not enforceable."
+      High: "Explicit rules for no secrets in logs."
+      Excellent: "Explicit rules plus validation or enforcement steps."

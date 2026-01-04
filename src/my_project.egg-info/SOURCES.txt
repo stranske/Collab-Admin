@@ -7,4 +7,5 @@ src/my_project.egg-info/SOURCES.txt
 src/my_project.egg-info/dependency_links.txt
 src/my_project.egg-info/requires.txt
 src/my_project.egg-info/top_level.txt
+tests/test_docs_links.py
 tests/test_main.py

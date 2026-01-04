@@ -1,26 +1,27 @@
 <!-- pr-preamble:start -->
-> **Source:** Issue #14
+> **Source:** Issue #16
 
 <!-- pr-preamble:end -->
 
 <!-- auto-status-summary:start -->
 ## Automated Status Summary
 #### Scope
-The streamlit_app/app.py is a placeholder. The collaboration needs a private dashboard to visualize review records, time tracking, and workstream progress.
+The `.github/workflows/ci_admin.yml` is a stub workflow. It needs jobs to validate Collab-Admin specific files like rubrics, review records, and time logs.
 
 #### Tasks
-- [x] Add time log loading from `logs/time_log.csv` with weekly/monthly aggregations
-- [x] Add review record loading from `reviews/` YAML files
-- [x] Create workstream progress overview showing completion by workstream
-- [x] Create time tracking summary with weekly caps visualization
-- [x] Add rubric dimension distribution charts (no numeric scores published)
-- [x] Add requirements.txt or update pyproject.toml with streamlit dependencies
+- [x] Add job to validate all YAML files in `rubrics/` are parseable
+- [x] Add job to validate rubric files have required structure (rubric_id, title, levels, dimensions)
+- [ ] Add job to validate `config/project.yml` and `config/dashboard_public.yml` schemas
+- [ ] Add job to lint markdown files in `docs/` for broken links
+- [ ] Add job to validate time log template format if `logs/time_log_template.csv` exists
+- [ ] Ensure all validation jobs report clear error messages
 
 #### Acceptance criteria
-- [x] Dashboard loads without errors when `streamlit run streamlit_app/app.py` is executed
-- [x] Time tracking view shows hours by week with 40hr cap indicator
-- [ ] Workstream view shows deliverable completion status
-- [ ] Review records display feedback and follow-ups (not numeric scores)
-- [x] App gracefully handles missing/empty data files
+- [ ] ci_admin.yml runs on pull_request events
+- [x] YAML validation job catches malformed rubric files
+- [ ] Config validation job ensures required fields exist
+- [ ] Markdown lint job reports broken internal links
+- [ ] All jobs use appropriate Python version and dependencies
+- [ ] Workflow passes when all files are valid
 
 <!-- auto-status-summary:end -->

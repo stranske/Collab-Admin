@@ -6,7 +6,7 @@ import csv
 import importlib.util
 import json
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 import yaml
@@ -30,7 +30,9 @@ build_static_dashboard = load_module()
 def write_time_log(path: Path, rows: list[dict[str, str]]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", newline="", encoding="utf-8") as handle:
-        writer = csv.DictWriter(handle, fieldnames=build_static_dashboard.TIME_LOG_FIELDS)
+        writer = csv.DictWriter(
+            handle, fieldnames=build_static_dashboard.TIME_LOG_FIELDS
+        )
         writer.writeheader()
         writer.writerows(rows)
 
@@ -159,7 +161,7 @@ def test_build_dashboard_with_data(tmp_path: Path) -> None:
         ci_history_path=ci_history,
         issue_pr_path=issue_pr_path,
         config_path=config_path,
-        now=datetime(2025, 1, 5, 12, 0, 0, tzinfo=timezone.utc),
+        now=datetime(2025, 1, 5, 12, 0, 0, tzinfo=UTC),
         recent_ci_runs=3,
     )
 
@@ -201,7 +203,7 @@ def test_build_dashboard_shows_numeric_average_when_enabled(tmp_path: Path) -> N
         ci_history_path=tmp_path / "logs" / "ci" / "metrics-history.ndjson",
         issue_pr_path=tmp_path / "logs" / "issue_pr_metrics.json",
         config_path=config_path,
-        now=datetime(2025, 2, 1, 12, 0, 0, tzinfo=timezone.utc),
+        now=datetime(2025, 2, 1, 12, 0, 0, tzinfo=UTC),
         recent_ci_runs=3,
     )
 
@@ -215,7 +217,7 @@ def test_build_dashboard_handles_missing_data(tmp_path: Path) -> None:
         ci_history_path=tmp_path / "logs" / "ci" / "metrics-history.ndjson",
         issue_pr_path=tmp_path / "logs" / "issue_pr_metrics.json",
         config_path=tmp_path / "config" / "dashboard_public.yml",
-        now=datetime(2025, 3, 1, 12, 0, 0, tzinfo=timezone.utc),
+        now=datetime(2025, 3, 1, 12, 0, 0, tzinfo=UTC),
         recent_ci_runs=3,
     )
 

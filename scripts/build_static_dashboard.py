@@ -146,9 +146,13 @@ def _summarize_time_logs(time_log_dir: Path) -> TimeLogSummary:
                     skipped_rows += 1
                     continue
                 workstream = (row.get("repo") or "Unknown").strip() or "Unknown"
-                category = (row.get("category") or "Uncategorized").strip() or "Uncategorized"
+                category = (
+                    row.get("category") or "Uncategorized"
+                ).strip() or "Uncategorized"
                 total_hours += hours
-                workstream_hours[workstream] = workstream_hours.get(workstream, 0.0) + hours
+                workstream_hours[workstream] = (
+                    workstream_hours.get(workstream, 0.0) + hours
+                )
                 category_hours[category] = category_hours.get(category, 0.0) + hours
                 entries += 1
 
@@ -262,7 +266,9 @@ def _load_issue_pr_metrics(path: Path) -> IssuePrSummary | None:
     issues = raw.get("issues", {})
     prs = raw.get("pull_requests", {})
     issues_open = _coerce_int(issues.get("open")) if isinstance(issues, dict) else None
-    issues_closed = _coerce_int(issues.get("closed")) if isinstance(issues, dict) else None
+    issues_closed = (
+        _coerce_int(issues.get("closed")) if isinstance(issues, dict) else None
+    )
     prs_open = _coerce_int(prs.get("open")) if isinstance(prs, dict) else None
     prs_closed = _coerce_int(prs.get("closed")) if isinstance(prs, dict) else None
 
@@ -288,7 +294,9 @@ def _load_issue_pr_metrics(path: Path) -> IssuePrSummary | None:
         updated = entry.get("updated_at") or entry.get("updated") or entry.get("date")
         number_text = f"#{number}" if number is not None else ""
         updated_text = f" ({updated})" if updated else ""
-        recent_activity.append(f"{item_type} {number_text} {title}{updated_text}".strip())
+        recent_activity.append(
+            f"{item_type} {number_text} {title}{updated_text}".strip()
+        )
 
     return IssuePrSummary(
         issues_open=issues_open,
@@ -340,9 +348,7 @@ def _summarize_ci_history(
         if failures == 0 and errors == 0:
             recent_passes += 1
 
-    pass_rate = (
-        (recent_passes / len(recent)) * 100 if recent else None
-    )
+    pass_rate = (recent_passes / len(recent)) * 100 if recent else None
     latest = records[-1]
     latest_summary = latest.get("summary") if isinstance(latest, dict) else None
     latest_timestamp = latest.get("timestamp") if isinstance(latest, dict) else None
@@ -384,7 +390,9 @@ def _render_time_section(summary: TimeLogSummary) -> list[str]:
     return lines
 
 
-def _render_review_section(summary: ReviewSummary, config: DashboardConfig) -> list[str]:
+def _render_review_section(
+    summary: ReviewSummary, config: DashboardConfig
+) -> list[str]:
     lines = ["## Review Summary"]
     if summary.total_reviews == 0:
         lines.append("No reviews found.")
@@ -396,10 +404,14 @@ def _render_review_section(summary: ReviewSummary, config: DashboardConfig) -> l
     if summary.numeric_ratings_found == 0:
         return lines
     if config.show_numeric_scoring and summary.numeric_average is not None:
-        lines.append(f"Average rating (numeric): {_format_float(summary.numeric_average)}")
+        lines.append(
+            f"Average rating (numeric): {_format_float(summary.numeric_average)}"
+        )
         if summary.numeric_average_by_workstream:
             lines.append("Average rating by workstream (numeric):")
-            for workstream, average in sorted(summary.numeric_average_by_workstream.items()):
+            for workstream, average in sorted(
+                summary.numeric_average_by_workstream.items()
+            ):
                 lines.append(f"- {workstream}: {_format_float(average)}")
     else:
         lines.append("Numeric ratings exist but are hidden by dashboard config.")
@@ -413,7 +425,9 @@ def _render_issue_pr_section(summary: IssuePrSummary | None) -> list[str]:
         return lines
     if summary.issues_open is not None or summary.issues_closed is not None:
         open_count = summary.issues_open if summary.issues_open is not None else "n/a"
-        closed_count = summary.issues_closed if summary.issues_closed is not None else "n/a"
+        closed_count = (
+            summary.issues_closed if summary.issues_closed is not None else "n/a"
+        )
         lines.append(f"Issues: open {open_count} | closed {closed_count}")
     if summary.prs_open is not None or summary.prs_closed is not None:
         open_count = summary.prs_open if summary.prs_open is not None else "n/a"
@@ -542,7 +556,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.now:
         try:
             now = dt.datetime.fromisoformat(args.now)
-        except ValueError as exc:
+        except ValueError:
             print(f"Invalid --now value: {args.now}", file=sys.stderr)
             return 2
         if now.tzinfo is None:

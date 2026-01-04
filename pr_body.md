@@ -1,24 +1,30 @@
 <!-- pr-preamble:start -->
-> **Source:** Issue #13
+> **Source:** Issue #15
 
 <!-- pr-preamble:end -->
 
 <!-- auto-status-summary:start -->
 ## Automated Status Summary
 #### Scope
-The review workflow (docs/06-review-workflow.md) specifies review records should be stored in `reviews/YYYY-MM/...yaml`. The directory structure and template files need to be created.
+The `scripts/validate_time_log.py` script exists but needs enhancements for better validation, and sample data files are needed for testing.
 
 #### Tasks
-- [ ] Create `reviews/.gitkeep` to ensure directory exists
-- [ ] Create `reviews/README.md` explaining review record format
-- [ ] Create `templates/review_record.yml` - Template for individual review records
-- [ ] Create `scripts/create_review_record.py` - Script to generate review record stubs from PR data
+- [x] Create `logs/.gitkeep` to ensure directory exists
+- [x] Add `logs/` to .gitignore (time logs are private)
+- [x] Create `logs/time_log_template.csv` with header and example row (tracked)
+- [x] Enhance `scripts/validate_time_log.py` to validate category values against allowed list
+- [x] Add validation for artifact_link format (GitHub URL pattern)
+- [x] Add validation for date format and reasonable date range
+- [x] Add --verbose flag for detailed output
+- [x] Add unit tests in `tests/scripts/test_validate_time_log.py`
 
 #### Acceptance criteria
-- [ ] `reviews/` directory exists and is tracked in git
-- [ ] Review record template includes: pr_number, reviewer, date, workstream, rubric_used, dimension_ratings, feedback, follow_up_issues
-- [ ] Script can generate a review record stub given a PR number
-- [ ] README documents the review record format and workflow
-- [ ] Script is executable and passes lint checks
+- [x] `logs/` directory exists with .gitkeep
+- [x] `logs/time_log_template.csv` provides clear header and format example
+- [x] Script validates category values (setup, feature, fix, review, meeting, admin)
+- [x] Script validates artifact_link is a valid GitHub URL or empty
+- [x] Script validates dates are reasonable (not in future, not too old)
+- [x] All tests pass with `pytest tests/scripts/`
+- [x] Script passes `ruff check` and `mypy`
 
 <!-- auto-status-summary:end -->

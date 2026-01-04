@@ -1,0 +1,47 @@
+rubric_id: trend_subsystem_brief
+title: Trend model subsystem brief
+key_question: "Does the subsystem brief demonstrate evidence-backed understanding of the Trend model code paths, inputs, and risks?"
+levels: [Poor, Mediocre, High, Excellent]
+dimensions:
+  - id: evidence_references
+    name: Evidence references coverage
+    descriptors:
+      Poor: "Missing References section or uses generic statements without code anchors."
+      Mediocre: "References exist but cover only a subset of required items or are thin."
+      High: "References cover most required items with specific paths and line anchors."
+      Excellent: "References comprehensively cover required items with clear why-it-matters notes."
+  - id: entrypoints
+    name: Entrypoints and boundaries
+    descriptors:
+      Poor: "Entrypoints are missing or incorrect; boundaries are vague."
+      Mediocre: "Identifies at least one entrypoint but misses key boundaries or scope."
+      High: "Identifies multiple entrypoints and main boundaries with minor gaps."
+      Excellent: "Identifies all primary entrypoints and clearly defines boundaries and ownership."
+  - id: call_paths
+    name: Core call path traces
+    descriptors:
+      Poor: "No clear call path tracing; only high-level narrative."
+      Mediocre: "One call path traced but incomplete or loosely connected to code."
+      High: "Two or more call paths traced with adequate code anchors."
+      Excellent: "Multiple call paths traced with precise anchors and rationale for flow."
+  - id: edge_handling
+    name: Error and edge path coverage
+    descriptors:
+      Poor: "No discussion of error or edge cases."
+      Mediocre: "Mentions errors but lacks specific code paths or inputs."
+      High: "Covers multiple error/edge paths with code references."
+      Excellent: "Covers critical error/edge paths with triggering inputs and outcomes."
+  - id: data_handling
+    name: Data boundaries, configuration, parsing
+    descriptors:
+      Poor: "Ignores inputs, config, or data parsing."
+      Mediocre: "Mentions data handling but omits key boundary conditions."
+      High: "Describes core inputs/config parsing with evidence."
+      Excellent: "Maps data boundaries and parsing behavior with risks and validation notes."
+  - id: change_hotspots
+    name: Change hotspots and risks
+    descriptors:
+      Poor: "No identification of hotspots or risk areas."
+      Mediocre: "Lists hotspots without evidence or prioritization."
+      High: "Identifies likely hotspots with references and rationale."
+      Excellent: "Prioritized hotspots with evidence, impact, and suggested first fixes."

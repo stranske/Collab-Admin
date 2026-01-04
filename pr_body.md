@@ -1,38 +1,29 @@
 <!-- pr-preamble:start -->
-> **Source:** Issue #9
+> **Source:** Issue #12
 
 <!-- pr-preamble:end -->
 
 <!-- auto-status-summary:start -->
 ## Automated Status Summary
 #### Scope
-The Collab-Admin repository needs to be initialized as the control plane for the collaboration project. This repo will manage policies, protocols, rubrics, submission templates, review records, time/expense logs, dashboards, and validation scripts.
-
-According to the starter kit README, this repo should be created by layering the starter kit files onto the stranske/Template structure (which is already in place) to leverage the shared automation library from stranske/Workflows for Gate CI, keepalive, autofix, etc.
+The rubric_index.yml lists 10 rubrics but only writing_quality.yml exists. Each workstream needs its rubric files to enable structured review workflows.
 
 #### Tasks
-- [x] Copy starter kit docs/ folder to repository root
-- [x] Copy rubrics/ folder with rubric_index.yml and writing_quality.yml
-- [x] Copy templates/ folder with submission_packet.md
-- [x] Set up streamlit_app/ directory with app.py
-- [x] Set up dashboards/public/ structure
-- [x] Copy scripts/ folder with validation scripts
-- [x] Integrate .github/workflows/ci_admin.yml and build_dashboard.yml
-- [x] Update repository README.md with Collab-Admin specific content
-- [x] Add config/ folder with project.yml and dashboard_public.yml
-- [x] Create placeholder directories: reviews/, logs/
-- [x] Update .gitignore for logs and review artifacts
-- [x] Verify all references in docs point to correct paths
+- [ ] Create `rubrics/trend_subsystem_brief.yml` - For trend model subsystem documentation
+- [ ] Create `rubrics/trend_module_note.yml` - For trend model module notes
+- [ ] Create `rubrics/trend_risk_register.yml` - For trend model risk documentation
+- [ ] Create `rubrics/trend_walkthrough.yml` - For trend model walkthrough presentations
+- [ ] Create `rubrics/agent_output_contract.yml` - For agent integration output specs
+- [ ] Create `rubrics/agent_integration.yml` - For agent integration deliverables
+- [ ] Create `rubrics/consumer_project_proposal.yml` - For consumer usability proposals
+- [ ] Create `rubrics/consumer_friction_log.yml` - For consumer friction logging
+- [ ] Create `rubrics/marketplace_implementation_plan.yml` - For marketplace plans
 
 #### Acceptance criteria
-- [x] - Repository contains all starter kit folders (docs/, rubrics/, templates/, scripts/, streamlit_app/, dashboards/, config/)
-- [x] - README.md clearly explains the Collab-Admin purpose and structure
-- [ ] - All documentation files are accessible and properly formatted
-- [x] - Validation scripts are executable
-- [ ] - Workflow files integrate with existing Gate/CI system
-- [x] - Charter (docs/00-charter.md) is present and accurate
-- [x] - Operating model (docs/01-operating-model.md) reflects the collaboration structure
-- [x] - Rubrics system is documented and ready for use
-- [x] - Submission packet template is ready for PR submissions
+- [ ] All 9 rubric files exist in `rubrics/` directory
+- [ ] Each rubric follows the structure: rubric_id, title, key_question, levels, dimensions
+- [ ] Each dimension has descriptors for all 4 levels: Poor, Mediocre, High, Excellent
+- [ ] Rubric content aligns with workstream protocols in docs/ (09-12)
+- [ ] YAML is valid and parseable
 
 <!-- auto-status-summary:end -->

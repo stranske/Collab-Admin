@@ -85,6 +85,9 @@ Navigate to **Settings** → **Secrets and variables** → **Actions** → **Sec
 | `SERVICE_BOT_PAT` | Bot account PAT for agent actions | Create from bot account with `repo`, `workflow` scopes |
 | `ACTIONS_BOT_PAT` | Alternative bot PAT (if using separate bot) | Same scopes as SERVICE_BOT_PAT |
 | `OWNER_PR_PAT` | Owner PAT for PR operations | Create from your account with `repo` scope |
+| `CODEX_AUTH_JSON` | Codex CLI authentication | Export from `~/.codex/auth.json` |
+| `WORKFLOWS_APP_ID` | **GitHub App ID (Required for keepalive)** | Contact admin for App ID |
+| `WORKFLOWS_APP_PRIVATE_KEY` | **GitHub App private key (Required for keepalive)** | Contact admin for private key |
 
 #### Creating SERVICE_BOT_PAT (Critical):
 

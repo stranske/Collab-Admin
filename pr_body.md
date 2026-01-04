@@ -1,38 +1,27 @@
 <!-- pr-preamble:start -->
-> **Source:** Issue #9
+> **Source:** Issue #16
 
 <!-- pr-preamble:end -->
 
 <!-- auto-status-summary:start -->
 ## Automated Status Summary
 #### Scope
-The Collab-Admin repository needs to be initialized as the control plane for the collaboration project. This repo will manage policies, protocols, rubrics, submission templates, review records, time/expense logs, dashboards, and validation scripts.
-
-According to the starter kit README, this repo should be created by layering the starter kit files onto the stranske/Template structure (which is already in place) to leverage the shared automation library from stranske/Workflows for Gate CI, keepalive, autofix, etc.
+The `.github/workflows/ci_admin.yml` is a stub workflow. It needs jobs to validate Collab-Admin specific files like rubrics, review records, and time logs.
 
 #### Tasks
-- [x] Copy starter kit docs/ folder to repository root
-- [x] Copy rubrics/ folder with rubric_index.yml and writing_quality.yml
-- [x] Copy templates/ folder with submission_packet.md
-- [x] Set up streamlit_app/ directory with app.py
-- [x] Set up dashboards/public/ structure
-- [x] Copy scripts/ folder with validation scripts
-- [x] Integrate .github/workflows/ci_admin.yml and build_dashboard.yml
-- [x] Update repository README.md with Collab-Admin specific content
-- [x] Add config/ folder with project.yml and dashboard_public.yml
-- [x] Create placeholder directories: reviews/, logs/
-- [x] Update .gitignore for logs and review artifacts
-- [x] Verify all references in docs point to correct paths
+- [ ] Add job to validate all YAML files in `rubrics/` are parseable
+- [ ] Add job to validate rubric files have required structure (rubric_id, title, levels, dimensions)
+- [ ] Add job to validate `config/project.yml` and `config/dashboard_public.yml` schemas
+- [ ] Add job to lint markdown files in `docs/` for broken links
+- [ ] Add job to validate time log template format if `logs/time_log_template.csv` exists
+- [ ] Ensure all validation jobs report clear error messages
 
 #### Acceptance criteria
-- [x] - Repository contains all starter kit folders (docs/, rubrics/, templates/, scripts/, streamlit_app/, dashboards/, config/)
-- [x] - README.md clearly explains the Collab-Admin purpose and structure
-- [ ] - All documentation files are accessible and properly formatted
-- [x] - Validation scripts are executable
-- [ ] - Workflow files integrate with existing Gate/CI system
-- [x] - Charter (docs/00-charter.md) is present and accurate
-- [x] - Operating model (docs/01-operating-model.md) reflects the collaboration structure
-- [x] - Rubrics system is documented and ready for use
-- [x] - Submission packet template is ready for PR submissions
+- [ ] ci_admin.yml runs on pull_request events
+- [ ] YAML validation job catches malformed rubric files
+- [ ] Config validation job ensures required fields exist
+- [ ] Markdown lint job reports broken internal links
+- [ ] All jobs use appropriate Python version and dependencies
+- [ ] Workflow passes when all files are valid
 
 <!-- auto-status-summary:end -->

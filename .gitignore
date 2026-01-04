@@ -10,3 +10,34 @@ verifier-context.md
 
 # Python build artifacts
 *.egg-info/
+
+# Codex / automation artifacts
+codex-session-*.jsonl
+codex-analysis-*.json
+autofix_report_enriched.json
+
+# Python caches
+__pycache__/
+*.py[cod]
+
+# Virtualenvs
+.venv/
+venv/
+
+# Python build artifacts
+build/
+dist/
+
+# Type check / lint / test caches
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+
+# Coverage reports
+.coverage
+coverage.xml
+coverage.json
+htmlcov/
+
+# CI / artifacts directories
+artifacts/

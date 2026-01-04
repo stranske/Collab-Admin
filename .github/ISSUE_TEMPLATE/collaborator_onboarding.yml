@@ -1,0 +1,183 @@
+name: Collaborator Onboarding
+description: Onboarding checklist and policy acknowledgment for new collaborators
+title: "Collaborator Onboarding: [NAME]"
+labels: [onboarding, needs-review]
+assignees: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## Welcome to the Collaboration!
+        
+        Please complete this onboarding by:
+        1. Reading each policy document (click the links below)
+        2. Checking the acknowledgment boxes **after** reading
+        3. Writing thoughtful responses to the comprehension questions
+        
+        Your responses will be reviewed before you're granted contributor access.
+        
+        **Important:** Responses should be in your own words, demonstrating understanding - 
+        not copied from the documents. Brief but complete answers are fine.
+
+  - type: input
+    id: full-name
+    attributes:
+      label: Full Name
+      description: Your full name for records
+      placeholder: "Jane Doe"
+    validations:
+      required: true
+
+  - type: input
+    id: github-username
+    attributes:
+      label: GitHub Username
+      description: Your GitHub username (for access provisioning)
+      placeholder: "janedoe"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: assigned-workstream
+    attributes:
+      label: Assigned Workstream
+      description: Which workstream are you joining? (Confirm with project owner if unsure)
+      options:
+        - Trend Model Clarity
+        - Agent Integration
+        - Consumer Usability
+        - Marketplace Plan
+        - Multiple / TBD
+    validations:
+      required: true
+
+  - type: markdown
+    attributes:
+      value: |
+        ---
+        ## Policy Acknowledgments
+        
+        Read each document before checking its box. These define how the collaboration operates.
+
+  - type: checkboxes
+    id: policy-acknowledgments
+    attributes:
+      label: "I have read and understand:"
+      description: Check each box AFTER reading the linked document
+      options:
+        - label: "[00-charter.md](docs/00-charter.md) — Project goals, scope, and boundaries"
+          required: true
+        - label: "[01-operating-model.md](docs/01-operating-model.md) — How work flows through GitHub"
+          required: true
+        - label: "[02-security-boundaries.md](docs/02-security-boundaries.md) — Access control and secrets handling"
+          required: true
+        - label: "[03-ai-policy.md](docs/03-ai-policy.md) — AI usage guidelines and restrictions"
+          required: true
+        - label: "[04-time-tracking-policy.md](docs/04-time-tracking-policy.md) — Time logging requirements"
+          required: true
+        - label: "[05-definition-of-done.md](docs/05-definition-of-done.md) — What makes work complete"
+          required: true
+        - label: "[06-review-workflow.md](docs/06-review-workflow.md) — PR and submission review process"
+          required: true
+        - label: "[07-compensation-expenses.md](docs/07-compensation-expenses.md) — Payment and expense protocols"
+          required: true
+
+  - type: markdown
+    attributes:
+      value: |
+        ---
+        ## Comprehension Questions
+        
+        Answer in your own words (1-3 paragraphs each). These help ensure alignment 
+        and surface any misunderstandings before work begins.
+
+  - type: textarea
+    id: q1-scope
+    attributes:
+      label: "Q1: What is IN scope vs OUT of scope for this project?"
+      description: "Describe the boundaries of what this collaboration covers and what it explicitly excludes."
+      placeholder: |
+        The project covers...
+        
+        It does NOT cover...
+    validations:
+      required: true
+
+  - type: textarea
+    id: q2-ai-policy
+    attributes:
+      label: "Q2: When CAN you use AI tools, and when MUST you NOT use them?"
+      description: "Explain the AI policy, especially noting any workstream-specific restrictions."
+      placeholder: |
+        AI tools can be used for...
+        
+        AI tools are prohibited when...
+    validations:
+      required: true
+
+  - type: textarea
+    id: q3-submission
+    attributes:
+      label: "Q3: Walk through the process from completing a task to getting paid."
+      description: "Describe the submission, review, and payment workflow."
+      placeholder: |
+        When I complete work, I need to...
+        
+        Then the review process involves...
+        
+        Payment happens when...
+    validations:
+      required: true
+
+  - type: textarea
+    id: q4-time-tracking
+    attributes:
+      label: "Q4: How do you track time, and what limits apply?"
+      description: "Explain time tracking requirements, format, and any weekly/monthly caps."
+      placeholder: |
+        Time is tracked using...
+        
+        The limits are...
+    validations:
+      required: true
+
+  - type: textarea
+    id: q5-your-role
+    attributes:
+      label: "Q5: What is YOUR specific role and responsibilities?"
+      description: "Describe your workstream assignment and what you'll be working on."
+      placeholder: |
+        I'm assigned to the [workstream] workstream.
+        
+        My responsibilities include...
+        
+        Key constraints for my workstream are...
+    validations:
+      required: true
+
+  - type: textarea
+    id: q6-clarifications
+    attributes:
+      label: "Q6: Questions or areas needing clarification"
+      description: "List anything unclear or that you'd like discussed before starting."
+      placeholder: "I wasn't sure about..."
+    validations:
+      required: false
+
+  - type: markdown
+    attributes:
+      value: |
+        ---
+        ## Final Acknowledgment
+
+  - type: checkboxes
+    id: final-acknowledgment
+    attributes:
+      label: "I understand and agree:"
+      options:
+        - label: "I understand that falsely checking boxes without reading documents may result in removal from the collaboration"
+          required: true
+        - label: "I will follow the submission process for all work and not expect payment for unreviewed submissions"
+          required: true
+        - label: "I will ask questions when unclear rather than making assumptions"
+          required: true

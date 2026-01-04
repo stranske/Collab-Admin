@@ -48,12 +48,8 @@ def aggregate_time_log(df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
         week=iso["year"].astype(str) + "-W" + iso["week"].astype(str).str.zfill(2),
         month=df["date"].dt.to_period("M").astype(str),
     )
-    weekly = (
-        df.groupby("week", as_index=False)["hours"].sum().sort_values("week")
-    )
-    monthly = (
-        df.groupby("month", as_index=False)["hours"].sum().sort_values("month")
-    )
+    weekly = df.groupby("week", as_index=False)["hours"].sum().sort_values("week")
+    monthly = df.groupby("month", as_index=False)["hours"].sum().sort_values("month")
     return weekly, monthly
 
 

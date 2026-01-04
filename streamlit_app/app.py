@@ -162,7 +162,9 @@ if review_records:
     for record in review_records:
         st.subheader(Path(record["path"]).name)
         feedback = extract_text_section(record, ["feedback", "summary", "notes"])
-        follow_ups = extract_text_section(record, ["follow_ups", "followups", "actions"])
+        follow_ups = extract_text_section(
+            record, ["follow_ups", "followups", "actions"]
+        )
         if feedback:
             st.markdown("**Feedback**")
             st.write(feedback)

@@ -397,6 +397,70 @@ def extract_text_section(record: dict[str, object], keys: list[str]) -> object |
     return None
 
 
+def render_bullets(items: list[object]) -> None:
+    cleaned = [str(item).strip() for item in items if item is not None]
+    cleaned = [item for item in cleaned if item]
+    if not cleaned:
+        st.write("No details recorded.")
+        return
+    st.markdown("\n".join(f"- {item}" for item in cleaned))
+
+
+def render_generic(value: object) -> None:
+    if value is None:
+        st.write("No details recorded.")
+        return
+    if isinstance(value, list):
+        render_bullets(value)
+        return
+    if isinstance(value, dict):
+        lines = []
+        for key, item in value.items():
+            if item is None:
+                continue
+            lines.append(f"{key}: {item}")
+        if lines:
+            render_bullets(lines)
+        else:
+            st.write("No details recorded.")
+        return
+    st.write(value)
+
+
+def render_feedback(value: object) -> None:
+    if isinstance(value, dict):
+        rendered = False
+        for key, item in value.items():
+            if item in (None, [], {}):
+                continue
+            st.markdown(f"**{key.replace('_', ' ').title()}**")
+            render_generic(item)
+            rendered = True
+        if rendered:
+            return
+    render_generic(value)
+
+
+def render_follow_ups(value: object) -> None:
+    if isinstance(value, list):
+        rows: list[dict[str, object]] = []
+        for item in value:
+            if isinstance(item, dict):
+                rows.append(
+                    {
+                        "ID": item.get("id", ""),
+                        "Description": item.get("description", ""),
+                        "Required": item.get("required", ""),
+                    }
+                )
+            else:
+                rows.append({"ID": "", "Description": str(item), "Required": ""})
+        if rows:
+            st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+            return
+    render_generic(value)
+
+
 st.set_page_config(page_title="Collab Dashboard", layout="wide")
 st.title("Collab Dashboard (Tim private)")
 st.write("Run locally. Do not publish numeric scoring.")
@@ -443,8 +507,10 @@ for name, statuses in deliverable_status.items():
     if not statuses:
         st.write("No deliverable checklist configured.")
         continue
-    for deliverable, state in statuses:
-        st.write(f"- {deliverable} [{state}]")
+    status_df = pd.DataFrame(statuses, columns=["Deliverable", "Status"])
+    st.dataframe(status_df, use_container_width=True, hide_index=True)
+    completed = sum(1 for _, state in statuses if state == "Done")
+    st.progress(completed / len(statuses))
 
 st.header("Review Records")
 for message in review_errors:
@@ -459,12 +525,12 @@ if review_records:
         )
         if feedback:
             st.markdown("**Feedback**")
-            st.write(feedback)
+            render_feedback(feedback)
         if follow_ups:
             st.markdown("**Follow-ups**")
-            st.write(follow_ups)
-        st.markdown("**Details (scores removed)**")
-        st.json(record["data"])
+            render_follow_ups(follow_ups)
+        with st.expander("Details (scores removed)"):
+            st.json(record["data"])
 
 st.header("Rubric Dimension Distribution")
 rubric_paths, rubric_index_errors = load_rubric_index(Path("rubrics/rubric_index.yml"))

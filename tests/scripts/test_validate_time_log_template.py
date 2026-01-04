@@ -4,7 +4,6 @@ from pathlib import Path
 
 from scripts.validate_time_log_template import validate_template
 
-
 VALID_HEADER = "date,hours,repo,issue_or_pr,category,description,artifact_link"
 
 

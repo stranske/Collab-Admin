@@ -10,7 +10,7 @@ The streamlit_app/app.py is a placeholder. The collaboration needs a private das
 
 #### Tasks
 - [x] Add time log loading from `logs/time_log.csv` with weekly/monthly aggregations
-- [ ] Add review record loading from `reviews/` YAML files
+- [x] Add review record loading from `reviews/` YAML files
 - [ ] Create workstream progress overview showing completion by workstream
 - [ ] Create time tracking summary with weekly caps visualization
 - [ ] Add rubric dimension distribution charts (no numeric scores published)

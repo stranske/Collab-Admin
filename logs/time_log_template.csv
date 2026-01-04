@@ -1,0 +1,2 @@
+date,hours,repo,issue_or_pr,category,description,artifact_link
+2024-01-08,2.5,Collab-Admin,PR-123,feature,Implement time log validation,https://github.com/org/repo/pull/123

@@ -15,6 +15,37 @@ TIME_LOG_COLUMNS = [
     "artifact_link",
 ]
 
+DEFAULT_WORKSTREAMS = [
+    {"id": "ws1_trend", "name": "Trend_Model_Project"},
+    {"id": "ws2_agents", "name": "Agent Integration"},
+    {"id": "ws3_consumer", "name": "Consumer Usability"},
+    {"id": "ws4_marketplace", "name": "Marketplace Plan"},
+]
+
+WORKSTREAM_DELIVERABLES = {
+    "Trend_Model_Project": [
+        "Analyze existing trend model implementation",
+        "Document findings and recommendations",
+        "Evidence references documented",
+    ],
+    "Agent Integration": [
+        "Claude Code integrated as the next agent",
+        "Third agent integrated (Aider/Continue/approved alt)",
+        "Stable outputs contract for agent runs",
+        "Docs-first future agent onboarding",
+    ],
+    "Consumer Usability": [
+        "Two PRs reduce friction (not just docs)",
+        "Workflows-level fixes evidenced when needed",
+        "Friction log captured in logs/friction/YYYY-MM.csv",
+    ],
+    "Marketplace Plan": [
+        "Two candidate platforms evaluated",
+        "Evaluation rubric defined (time, reliability, security, maintainability, cost)",
+        "Two-week execution schedule with exit criteria",
+    ],
+}
+
 
 def load_yaml_module() -> tuple[object | None, str | None]:
     try:
@@ -22,6 +53,84 @@ def load_yaml_module() -> tuple[object | None, str | None]:
     except Exception as exc:  # pragma: no cover - optional dependency
         return None, f"PyYAML is required to load review records: {exc}"
     return yaml, None
+
+
+def load_workstreams(path: Path) -> tuple[list[dict[str, str]], str | None]:
+    if not path.exists():
+        return DEFAULT_WORKSTREAMS, f"Workstream config not found at {path}."
+
+    yaml_module, yaml_error = load_yaml_module()
+    if yaml_error:
+        return DEFAULT_WORKSTREAMS, yaml_error
+
+    try:
+        data = yaml_module.safe_load(path.read_text(encoding="utf-8"))
+    except Exception as exc:  # pragma: no cover - runtime feedback
+        return DEFAULT_WORKSTREAMS, f"Unable to read workstream config: {exc}"
+
+    workstreams = data.get("project", {}).get("workstreams") if isinstance(data, dict) else None
+    if not isinstance(workstreams, list) or not workstreams:
+        return DEFAULT_WORKSTREAMS, "Workstream config missing workstreams list."
+
+    cleaned: list[dict[str, str]] = []
+    for item in workstreams:
+        if not isinstance(item, dict):
+            continue
+        name = item.get("name")
+        ws_id = item.get("id")
+        if isinstance(name, str) and isinstance(ws_id, str):
+            cleaned.append({"id": ws_id, "name": name})
+
+    return cleaned or DEFAULT_WORKSTREAMS, None
+
+
+def normalize_workstream(value: str) -> str:
+    return value.strip().lower().replace("_", " ")
+
+
+def compute_workstream_progress(
+    workstreams: list[dict[str, str]],
+    review_records: list[dict[str, object]],
+) -> tuple[pd.DataFrame, dict[str, list[tuple[str, str]]]]:
+    counts: dict[str, int] = {ws["name"]: 0 for ws in workstreams}
+    lookup = {}
+    for ws in workstreams:
+        lookup[normalize_workstream(ws["name"])] = ws["name"]
+        lookup[normalize_workstream(ws["id"])] = ws["name"]
+    for record in review_records:
+        data = record.get("data")
+        if not isinstance(data, dict):
+            continue
+        raw = data.get("workstream")
+        if isinstance(raw, str):
+            normalized = normalize_workstream(raw)
+            if normalized in lookup:
+                counts[lookup[normalized]] += 1
+
+    rows = []
+    deliverable_status: dict[str, list[tuple[str, str]]] = {}
+    for workstream in workstreams:
+        name = workstream["name"]
+        deliverables = WORKSTREAM_DELIVERABLES.get(name, [])
+        expected = max(len(deliverables), 1)
+        completed = min(counts.get(name, 0), len(deliverables))
+        completion = completed / expected
+        rows.append(
+            {
+                "Workstream": name,
+                "Deliverables complete": completed,
+                "Deliverables total": expected,
+                "Completion %": round(completion * 100, 1),
+                "Reviews logged": counts.get(name, 0),
+            }
+        )
+        status = []
+        for index, deliverable in enumerate(deliverables):
+            state = "Done" if index < completed else "Pending"
+            status.append((deliverable, state))
+        deliverable_status[name] = status
+
+    return pd.DataFrame(rows), deliverable_status
 
 
 def load_time_log(path: Path) -> tuple[pd.DataFrame | None, str | None]:
@@ -152,9 +261,28 @@ else:
     st.dataframe(monthly_totals, use_container_width=True)
     st.bar_chart(monthly_totals.set_index("month"))
 
-st.header("Review Records")
 reviews_path = Path("reviews")
 review_records, review_errors = load_review_records(reviews_path)
+
+st.header("Workstream Progress")
+workstreams, workstream_error = load_workstreams(Path("config/project.yml"))
+if workstream_error:
+    st.info(workstream_error)
+
+workstream_table, deliverable_status = compute_workstream_progress(
+    workstreams, review_records
+)
+st.dataframe(workstream_table, use_container_width=True)
+
+for name, statuses in deliverable_status.items():
+    st.subheader(name)
+    if not statuses:
+        st.write("No deliverable checklist configured.")
+        continue
+    for deliverable, state in statuses:
+        st.write(f"- {deliverable} [{state}]")
+
+st.header("Review Records")
 for message in review_errors:
     st.info(message)
 

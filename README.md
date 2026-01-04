@@ -1,225 +1,158 @@
-# Template
+# Collab-Admin
 
-A template Python repository with [stranske/Workflows](https://github.com/stranske/Workflows) CI integration and CLI Codex agent automation.
+Control plane for the stranske collaboration project. This repository defines policies, protocols, rubrics, submission templates, review workflows, time/expense tracking, dashboards, and validation scripts for the collaboration.
 
-## Features
+## Purpose
 
-- 🐍 **Python 3.11+** - Modern Python with type hints
-- 🔧 **Ruff** - Fast Python linting and formatting
-- 🔍 **MyPy** - Strict type checking
-- 🧪 **Pytest** - Testing with 80% coverage requirement
-- 🤖 **CLI Codex Automation** - Gate-triggered keepalive for automated development
-- 🔄 **Dual Checkout Pattern** - Consumer repo + centralized Workflows scripts
+Collab-Admin serves as the **single source of truth** for:
+- Operating model and governance ([docs/01-operating-model.md](docs/01-operating-model.md))
+- Security boundaries and access control ([docs/02-security-boundaries.md](docs/02-security-boundaries.md))
+- Submission standards and review rubrics ([rubrics/](rubrics/))
+- Time tracking and compensation protocols ([docs/04-time-tracking-policy.md](docs/04-time-tracking-policy.md))
+- Public-facing dashboards ([dashboards/public/](dashboards/public/))
+- Validation and quality assurance scripts ([scripts/](scripts/))
 
-## Quick Start
+This repo was initialized by layering the [Collab-Admin starter kit](collab-admin-starter-kit-v4.zip) onto the [stranske/Template](https://github.com/stranske/Template) structure to leverage shared automation from [stranske/Workflows](https://github.com/stranske/Workflows).
 
-```bash
-# Clone the repository
-git clone https://github.com/stranske/Template.git
-cd Template
-
-# Install in development mode
-pip install -e ".[dev]"
-
-# Run tests
-pytest
-
-# Run linting
-ruff check src/ tests/
-
-# Run type checking
-mypy src/ tests/
-```
-
-## Project Structure
+## Repository Structure
 
 ```
-Template/
-├── .github/
-│   ├── codex/
-│   │   ├── AGENT_INSTRUCTIONS.md  # Codex agent guidelines
-│   │   └── prompts/               # Task execution templates
-│   ├── scripts/                   # Agent automation scripts (dual checkout from Workflows)
-│   └── workflows/                 # GitHub Actions workflows
-├── docs/                          # Documentation
-├── src/
-│   └── my_project/                # Main package
-├── tests/                         # Test suite
-├── Issues.txt                     # Agent issue queue
-├── pyproject.toml                 # Project configuration
-└── README.md
+Collab-Admin/
+├── config/
+│   ├── project.yml              # Project configuration
+│   └── dashboard_public.yml     # Public dashboard config
+├── docs/                        # Policy and protocol documentation
+│   ├── 00-charter.md           # Project charter and goals
+│   ├── 01-operating-model.md   # Work processes and constraints
+│   ├── 02-security-boundaries.md # Access control and secrets
+│   ├── 03-ai-policy.md         # AI usage guidelines
+│   ├── 04-time-tracking-policy.md # Time logging requirements
+│   ├── 05-definition-of-done.md # Completion criteria
+│   ├── 06-review-workflow.md   # PR review process
+│   ├── 07-compensation-expenses.md # Payment protocols
+│   ├── 08-month-end-settlement.md # Monthly reconciliation
+│   ├── 09-trend-review-protocol.md # Trend model analysis
+│   ├── 10-agent-integration-protocol.md # Claude Code integration
+│   ├── 11-consumer-usability-protocol.md # Usability validation
+│   ├── 12-marketplace-plan-protocol.md # Marketplace research
+│   ├── 13-project-instrumentation-roadmap.md # Observability
+│   └── 14-workflows-ecosystem.md # Automation architecture
+├── rubrics/
+│   ├── rubric_index.yml        # Index of all rubrics
+│   └── writing_quality.yml     # Writing quality rubric
+├── templates/
+│   └── submission_packet.md    # Standard submission format
+├── scripts/
+│   └── validate_time_log.py    # Time log validation script
+├── streamlit_app/
+│   └── app.py                  # Dashboard application
+├── dashboards/
+│   └── public/                 # Public-facing dashboards
+│       └── README.md           # Dashboard documentation
+├── reviews/                    # Review records (git-tracked)
+├── logs/                       # Time and expense logs (.gitignored)
+└── .github/workflows/          # CI and automation workflows
+    ├── ci_admin.yml           # Admin validation CI
+    └── build_dashboard.yml    # Dashboard build workflow
 ```
 
-## Workflows
+## Workstreams
 
-This repository uses reusable workflows from [stranske/Workflows](https://github.com/stranske/Workflows):
+The collaboration has four workstreams, each with specific deliverables and rubrics:
 
-### Core CI & Quality
+1. **Trend Model Clarity** ([docs/09-trend-review-protocol.md](docs/09-trend-review-protocol.md))
+   - Analyze existing trend model implementation
+   - Document findings and recommendations
+   - No AI tools allowed for this workstream
+
+2. **Agent Integration** ([docs/10-agent-integration-protocol.md](docs/10-agent-integration-protocol.md))
+   - Integrate Claude Code as next agent
+   - Implement 3rd agent integration
+   - Test multi-agent workflows
+
+3. **Consumer Usability** ([docs/11-consumer-usability-protocol.md](docs/11-consumer-usability-protocol.md))
+   - Validate setup documentation
+   - Test consumer repo creation process
+   - Improve onboarding experience
+
+4. **Marketplace Plan** ([docs/12-marketplace-plan-protocol.md](docs/12-marketplace-plan-protocol.md))
+   - Research GitHub marketplace requirements
+   - Create implementation roadmap
+   - Document API integration patterns
+
+## Submission Process
+
+All work must be submitted via GitHub PR with a completed [submission packet](templates/submission_packet.md) that includes:
+- Work summary and time tracking
+- Deliverable links and evidence
+- Self-assessment against rubrics
+- Open questions or blockers
+
+See [docs/06-review-workflow.md](docs/06-review-workflow.md) for complete review process.
+
+## Automation
+
+This repository uses [stranske/Workflows](https://github.com/stranske/Workflows) for:
+- **Gate CI**: PR validation with Python linting, type checking, and tests
+- **Keepalive Automation**: CLI Codex agent for automated implementation
+- **Autofix**: Automatic code formatting and lint fixes
+- **Dashboard Builds**: Automated dashboard generation from review data
+
+### Key Workflows
 
 | Workflow | Purpose | Trigger |
 |----------|---------|---------|
-| **Gate** | PR validation (CI, lint, tests) | Pull request |
-| **CI** | Push-to-main continuous integration | Push to main |
-| **Autofix** | Automatic lint/format fixes | Label: `autofix` |
-
-### Agent Workflows (CLI Codex)
-
-| Workflow | Purpose | Trigger |
-|----------|---------|---------|
-| **Keepalive Loop** | Runs Codex CLI after Gate passes | Gate completion, PR label |
-| **PR Meta** | Updates PR status summaries | PR events |
-| **Issue Intake** | Creates PRs from labeled issues | Issue labeled |
-| **Guard** | Security checks for agent execution | Before agent runs |
-| **Bot Comment Handler** | Processes @codex commands | Issue comments |
-| **Autofix Loop** | Autofix integration with keepalive | Autofix + agent label |
-
-**Note:** `agents-orchestrator.yml` is legacy and can be removed. The current architecture uses `agents-keepalive-loop.yml` which integrates with the Gate workflow for event-driven triggering.
-
-## Agent Automation
-
-This template uses the **Gate-triggered keepalive** architecture:
-
-### How It Works
-
-1. **Create Issue** with structured Scope/Tasks/Acceptance sections
-2. **Label Issue** with `agent:codex`
-3. **Issue Intake** creates PR from issue
-4. **Gate Workflow** runs CI validation
-5. **Keepalive Loop** triggers after Gate completion
-   - Evaluates eligibility (unchecked tasks, no pause labels)
-   - Runs CLI Codex via `reusable-codex-run.yml`
-   - Codex implements changes and pushes commits
-6. **Gate Runs Again** → loop continues
-7. **Completion** when all acceptance criteria checked
-
-### Key Components
-
-- **Activation**: PR must have `agent:codex` label, Gate success, unchecked tasks
-- **Task Tracking**: Agent updates checkboxes in PR body after completing work
-- **Progress Detection**: Automatic checkbox reconciliation via session analysis
-- **Failure Handling**: After 3 failures, adds `needs-human` label and pauses
-- **Concurrency**: One keepalive run per PR (configurable via `agents:max-parallel:N`)
-
-### Control Labels
-
-| Label | Effect |
-|-------|--------|
-| `agent:codex` | Enables Codex automation |
-| `agents:pause` | Halts all agent activity |
-| `needs-human` | Auto-added after failures, blocks keepalive |
-| `agents:max-parallel:N` | Override concurrent run limit (default: 1) |
-
-### Using Issues.txt
-
-Add issues to `Issues.txt` using the structured format, then trigger the intake workflow:
-
-```
-1) Issue title here
-Labels: agent:codex, enhancement
-
-## Scope
-Explanation of what needs to be done and why.
-
-## Tasks
-- [ ] Task 1
-- [ ] Task 2
-- [ ] Task 3
-
-## Acceptance Criteria
-- [ ] All tests pass
-- [ ] Code is documented
-- [ ] Coverage ≥80%
-
-Implementation notes
-- Technical details or constraints
-```
-
-## Setup for New Repos
-
-### Required Secrets
-
-| Secret | Purpose | Alternative |
-|--------|---------|-------------|
-| `CODEX_AUTH_JSON` | ChatGPT auth for Codex CLI | Recommended |
-| `WORKFLOWS_APP_ID` | GitHub App ID | Use with APP_PRIVATE_KEY |
-| `WORKFLOWS_APP_PRIVATE_KEY` | GitHub App private key | Use with APP_ID |
-| `SERVICE_BOT_PAT` | Bot PAT for automation | Required |
-| `OWNER_PR_PAT` | Owner PAT for PR operations | Optional |
-
-**Note:** Choose either `CODEX_AUTH_JSON` OR the GitHub App credentials, not both.
-
-### Required Environments
-
-Create in **Settings** → **Environments**:
-- `agent-standard` - For standard agent execution
-
-### Repository Variables
-
-| Variable | Purpose | Default |
-|----------|---------|---------|
-| `ALLOWED_KEEPALIVE_LOGINS` | Users who can trigger keepalive | `stranske` |
-
-### Branch Protection
-
-Configure branch protection for `main`:
-- Require status checks: `Gate / gate`
-- Require pull request reviews: 1 approval
-- Dismiss stale reviews on new commits
+| **ci_admin.yml** | Validate docs, rubrics, time logs | Pull request |
+| **build_dashboard.yml** | Generate public dashboards | Push to main |
+| **Gate** | Standard CI validation | Pull request |
+| **Keepalive Loop** | Agent automation | Gate pass + labels |
 
 ## Development
 
 ```bash
+# Clone repository
+git clone https://github.com/stranske/Collab-Admin.git
+cd Collab-Admin
+
 # Install dependencies
 pip install -e ".[dev]"
 
-# Run all checks
-ruff check src/ tests/
-mypy src/ tests/
-pytest --cov
+# Run validation scripts
+python scripts/validate_time_log.py logs/time_log.csv
 
-# Format code
-ruff format src/ tests/
+# Run tests
+pytest
+
+# Check code quality
+ruff check src/ tests/ scripts/
+mypy src/ tests/ scripts/
 ```
 
-## Troubleshooting
+## Configuration
 
-### Keepalive Not Triggering
+### Required Secrets
 
-- Verify PR has `agent:codex` label
-- Check Gate workflow passed
-- Ensure PR body has unchecked tasks
-- Look for `agents:pause` or `needs-human` labels
-- Review keepalive summary comment for skip reasons
+| Secret | Purpose |
+|--------|---------|
+| `CODEX_AUTH_JSON` | Codex CLI authentication |
+| `WORKFLOWS_APP_ID` | GitHub App ID for token minting |
+| `WORKFLOWS_APP_PRIVATE_KEY` | GitHub App private key |
+| `SERVICE_BOT_PAT` | Bot PAT for automation |
+| `OWNER_PR_PAT` | Owner PAT for PR operations |
 
-### No Automated Status Summary
+### Repository Variables
 
-- Verify issue has Scope/Tasks/Acceptance sections
-- Run `agents-pr-meta.yml` manually
-- Check PR links to source issue
-
-### Agent Failures
-
-After 3 failures, keepalive pauses and adds `needs-human`:
-1. Review failure reason in keepalive summary
-2. Fix the issue (code, prompt, auth)
-3. Remove `needs-human` label to resume
-
-### Permission Errors
-
-- Verify `CODEX_AUTH_JSON` or GitHub App credentials are set
-- Check environment `agent-standard` exists
-- Ensure PATs have required scopes: `repo`, `workflow`
+| Variable | Purpose | Value |
+|----------|---------|-------|
+| `ALLOWED_KEEPALIVE_LOGINS` | Users who can trigger keepalive | `stranske` |
 
 ## Documentation
 
-- [Workflows Repo](https://github.com/stranske/Workflows) - Central workflow library
-- [Consumer README](https://github.com/stranske/Workflows/blob/main/templates/consumer-repo/README.md) - Complete setup guide
-- [Keepalive Architecture](https://github.com/stranske/Workflows/blob/main/docs/keepalive/GoalsAndPlumbing.md) - Detailed design
-- [Setup Checklist](docs/keepalive/SETUP_CHECKLIST.md) - Step-by-step configuration
+- [Charter](docs/00-charter.md) - Project goals and scope
+- [Operating Model](docs/01-operating-model.md) - How work flows through GitHub
+- [Security Boundaries](docs/02-security-boundaries.md) - Access control and secrets
+- [Workflows Ecosystem](docs/14-workflows-ecosystem.md) - Complete automation architecture
 
 ## License
 
 MIT License - see [LICENSE](LICENSE) for details.
-# CI Setup Test
-
-This PR tests the Gate workflow configuration.

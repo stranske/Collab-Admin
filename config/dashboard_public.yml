@@ -1,0 +1,5 @@
+dashboard:
+  mode: public
+  show_numeric_scoring: false
+  show_level_counts: true
+  show_level_distributions: true

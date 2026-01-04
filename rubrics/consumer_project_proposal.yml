@@ -1,0 +1,40 @@
+rubric_id: consumer_project_proposal
+title: Consumer project proposal
+key_question: "Does the proposal select a suitable medium build project and outline a usable Workflows integration plan?"
+levels: [Poor, Mediocre, High, Excellent]
+dimensions:
+  - id: project_fit
+    name: Project selection fit
+    descriptors:
+      Poor: "Project is not a medium build or lacks multi-module scope."
+      Mediocre: "Project is medium-sized but missing a CLI or UI surface."
+      High: "Project is medium build with multiple modules and a CLI/UI surface."
+      Excellent: "Project is an excellent medium build with clear complexity and integration value."
+  - id: thin_caller_plan
+    name: Thin-caller integration plan
+    descriptors:
+      Poor: "No plan for thin-caller integration."
+      Mediocre: "Mentions thin-caller but lacks actionable steps."
+      High: "Clear plan to integrate using the thin-caller pattern."
+      Excellent: "Step-by-step thin-caller plan with milestones and ownership."
+  - id: usability_focus
+    name: Usability goals and hypotheses
+    descriptors:
+      Poor: "No usability goals or hypotheses."
+      Mediocre: "Goals stated but not tied to measurable outcomes."
+      High: "Goals link to measurable outcomes or acceptance criteria."
+      Excellent: "Goals, hypotheses, and success metrics are explicit and testable."
+  - id: friction_plan
+    name: Friction logging plan
+    descriptors:
+      Poor: "No plan to capture friction."
+      Mediocre: "Plan exists but missing log format or cadence."
+      High: "Plan includes log format and cadence."
+      Excellent: "Plan includes log format, cadence, and review loop for fixes."
+  - id: risks_assumptions
+    name: Risks and assumptions
+    descriptors:
+      Poor: "Risks and assumptions are missing."
+      Mediocre: "Some risks listed but lack mitigation."
+      High: "Risks and assumptions listed with mitigations."
+      Excellent: "Risks, assumptions, and mitigations include validation steps."

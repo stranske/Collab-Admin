@@ -23,7 +23,7 @@ dimensions:
       Poor: "Requires per-agent special casing or manual interpretation."
       Mediocre: "Mostly compatible but needs ad hoc handling for edge cases."
       High: "Compatible with existing workflows without special cases."
-      Excellent: "Proves compatibility via tests or fixtures in integration coverage."
+      Excellent: "Proves compatibility via Workflows-Integration-Tests fixtures or equivalent."
   - id: safety_logging
     name: Safety and logging constraints
     descriptors:

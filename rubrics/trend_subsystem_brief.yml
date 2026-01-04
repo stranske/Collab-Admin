@@ -3,13 +3,20 @@ title: Trend model subsystem brief
 key_question: "Does the subsystem brief demonstrate evidence-backed understanding of the Trend model code paths, inputs, and risks?"
 levels: [Poor, Mediocre, High, Excellent]
 dimensions:
+  - id: protocol_compliance
+    name: Protocol compliance
+    descriptors:
+      Poor: "No statement of no-AI compliance or indicates AI assistance was used."
+      Mediocre: "Implied compliance but no explicit attestation or process detail."
+      High: "Explicitly states no AI assistance and follows the protocol."
+      Excellent: "Explicit no-AI attestation plus brief process notes showing compliance."
   - id: evidence_references
     name: Evidence references coverage
     descriptors:
-      Poor: "Missing References section or uses generic statements without code anchors."
-      Mediocre: "References exist but cover only a subset of required items or are thin."
-      High: "References cover most required items with specific paths and line anchors."
-      Excellent: "References comprehensively cover required items with clear why-it-matters notes."
+      Poor: "Missing References section or references are not in the required format."
+      Mediocre: "References exist but miss required categories or use inconsistent anchors."
+      High: "References follow the required format and cover most required categories."
+      Excellent: "References follow the required format and meet/exceed minimum counts with why-it-matters notes."
   - id: entrypoints
     name: Entrypoints and boundaries
     descriptors:

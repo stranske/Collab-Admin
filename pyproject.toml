@@ -1,11 +1,12 @@
 [build-system]
-requires = ["setuptools>=61.0", "wheel"]
-build-backend = "setuptools.build_meta"
+requires = []
+build-backend = "pep517_backend"
+backend-path = ["tools"]
 
 [project]
-name = "my-project"
+name = "collab-admin"
 version = "0.1.0"
-description = "Template Python project with stranske/Workflows CI integration"
+description = "Control plane for the stranske collaboration project."
 readme = "README.md"
 requires-python = ">=3.11"
 license = {text = "MIT"}
@@ -29,11 +30,12 @@ dev = [
     "pytest-cov>=7.0.0",
     "ruff>=0.14.10",
     "mypy>=1.19.1",
+    "streamlit>=1.36.0",
 ]
 
 [project.urls]
-Homepage = "https://github.com/stranske/Template"
-Repository = "https://github.com/stranske/Template"
+Homepage = "https://github.com/stranske/Collab-Admin"
+Repository = "https://github.com/stranske/Collab-Admin"
 
 [tool.setuptools.packages.find]
 where = ["src"]
@@ -79,7 +81,7 @@ ignore = [
 ]
 
 [tool.ruff.lint.isort]
-known-first-party = ["my_project"]
+known-first-party = ["collab_admin"]
 
 [tool.mypy]
 python_version = "3.11"

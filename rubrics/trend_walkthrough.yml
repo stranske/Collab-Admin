@@ -1,0 +1,40 @@
+rubric_id: trend_walkthrough
+title: Trend model walkthrough
+key_question: "Does the walkthrough demonstrate live, evidence-backed understanding of Trend model call paths and edge cases?"
+levels: [Poor, Mediocre, High, Excellent]
+dimensions:
+  - id: protocol_compliance
+    name: Protocol compliance
+    descriptors:
+      Poor: "No statement of no-AI compliance or indicates AI assistance was used."
+      Mediocre: "Implied compliance but no explicit attestation."
+      High: "Explicitly states no AI assistance and follows the protocol."
+      Excellent: "Explicit no-AI attestation plus brief process notes showing compliance."
+  - id: evidence_references
+    name: Evidence references coverage
+    descriptors:
+      Poor: "No code references or references are not in the required format."
+      Mediocre: "References exist but are sparse or inconsistently formatted."
+      High: "References follow the required format and support key walkthrough points."
+      Excellent: "References are comprehensive and map to every major claim."
+  - id: call_path_trace
+    name: Call path walkthrough
+    descriptors:
+      Poor: "Cannot trace call paths or relies on vague narratives."
+      Mediocre: "Traces a single path but misses key transitions."
+      High: "Traces multiple call paths with clear transitions."
+      Excellent: "Traces multiple call paths with precise anchors and flow rationale."
+  - id: interruption_readiness
+    name: Interruption readiness
+    descriptors:
+      Poor: "Cannot answer interruption checks or locate code when asked."
+      Mediocre: "Answers some interruption checks but struggles to anchor in code."
+      High: "Answers interruption checks with relevant code anchors."
+      Excellent: "Answers interruption checks quickly with specific anchors and inputs."
+  - id: edge_case_coverage
+    name: Error and edge path coverage
+    descriptors:
+      Poor: "No discussion of error or edge cases."
+      Mediocre: "Mentions errors but lacks specific code paths or inputs."
+      High: "Covers multiple error/edge paths with code references."
+      Excellent: "Covers critical error/edge paths with triggering inputs and outcomes."

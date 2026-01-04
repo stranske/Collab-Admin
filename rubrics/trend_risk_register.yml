@@ -1,0 +1,40 @@
+rubric_id: trend_risk_register
+title: Trend model risk register
+key_question: "Does the risk register capture evidence-based Trend model risks with clear impact, likelihood, and mitigation?"
+levels: [Poor, Mediocre, High, Excellent]
+dimensions:
+  - id: protocol_compliance
+    name: Protocol compliance
+    descriptors:
+      Poor: "No statement of no-AI compliance or indicates AI assistance was used."
+      Mediocre: "Implied compliance but no explicit attestation."
+      High: "Explicitly states no AI assistance and follows the protocol."
+      Excellent: "Explicit no-AI attestation plus brief process notes showing compliance."
+  - id: evidence_references
+    name: Evidence references coverage
+    descriptors:
+      Poor: "Missing References section or references are not in the required format."
+      Mediocre: "References exist but miss critical risks or use inconsistent anchors."
+      High: "References follow the required format and cover key risks."
+      Excellent: "References follow the required format with why-it-matters notes across risks."
+  - id: risk_coverage
+    name: Risk coverage and completeness
+    descriptors:
+      Poor: "Only a few risks listed or obvious risks are missing."
+      Mediocre: "Covers some risks but lacks breadth across inputs, logic, and outputs."
+      High: "Covers risks across inputs, processing, and outputs with minor gaps."
+      Excellent: "Comprehensive coverage across entrypoints, processing, edges, and data boundaries."
+  - id: severity_likelihood
+    name: Impact and likelihood clarity
+    descriptors:
+      Poor: "No impact/likelihood assessment or uses vague labels."
+      Mediocre: "Impact or likelihood included but inconsistent or unsupported."
+      High: "Impact and likelihood are clear and consistent."
+      Excellent: "Impact and likelihood are justified with evidence or metrics."
+  - id: mitigation_actions
+    name: Mitigation and owners
+    descriptors:
+      Poor: "No mitigation steps or owners listed."
+      Mediocre: "Mitigations listed but lack owners or next steps."
+      High: "Mitigations include owners and near-term next steps."
+      Excellent: "Mitigations include owners, milestones, and validation checks."

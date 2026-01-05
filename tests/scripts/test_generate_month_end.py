@@ -9,9 +9,7 @@ from pathlib import Path
 
 
 def load_module():
-    script_path = (
-        Path(__file__).resolve().parents[2] / "scripts" / "generate_month_end.py"
-    )
+    script_path = Path(__file__).resolve().parents[2] / "scripts" / "generate_month_end.py"
     spec = importlib.util.spec_from_file_location("generate_month_end", script_path)
     module = importlib.util.module_from_spec(spec)
     assert spec.loader is not None

@@ -51,7 +51,7 @@ def _read_csv_rows(path: Path) -> list[dict[str, str]]:
         return []
     with path.open(newline="", encoding="utf-8") as handle:
         reader = csv.DictReader(handle)
-        return [row for row in reader]
+        return list(reader)
 
 
 def _parse_float(value: str) -> float | None:

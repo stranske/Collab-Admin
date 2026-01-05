@@ -85,6 +85,50 @@ jobs:
           fi
 
   # ============================================================================
+  # Expense log validation
+  # ============================================================================
+  validate-expense-logs:
+    name: Validate expense logs
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Validate expense logs
+        run: |
+          if ls logs/expenses/*.csv 1> /dev/null 2>&1; then
+            for f in logs/expenses/*.csv; do
+              echo "Validating $f..."
+              python scripts/validate_expense_log.py "$f"
+            done
+          else
+            echo "No expense logs in logs/expenses/ yet."
+          fi
+
+  # ============================================================================
+  # Friction log validation
+  # ============================================================================
+  validate-friction-logs:
+    name: Validate friction logs
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Validate friction logs
+        run: |
+          if ls logs/friction/*.csv 1> /dev/null 2>&1; then
+            for f in logs/friction/*.csv; do
+              echo "Validating $f..."
+              python scripts/validate_friction_log.py "$f"
+            done
+          else
+            echo "No friction logs in logs/friction/ yet."
+          fi
+
+  # ============================================================================
   # Markdown link validation
   # ============================================================================
   validate-docs:
@@ -142,7 +186,7 @@ jobs:
   # ============================================================================
   admin-ci:
     name: Admin CI Summary
-    needs: [validate-rubrics, validate-config, validate-time-logs, validate-docs]
+    needs: [validate-rubrics, validate-config, validate-time-logs, validate-expense-logs, validate-friction-logs, validate-docs]
     if: always()
     runs-on: ubuntu-latest
     steps:
@@ -151,6 +195,8 @@ jobs:
           rubrics="${{ needs.validate-rubrics.result }}"
           config="${{ needs.validate-config.result }}"
           timelogs="${{ needs.validate-time-logs.result }}"
+          expenselogs="${{ needs.validate-expense-logs.result }}"
+          frictionlogs="${{ needs.validate-friction-logs.result }}"
           docs="${{ needs.validate-docs.result }}"
           
           echo "## Admin CI Results" >> $GITHUB_STEP_SUMMARY
@@ -160,10 +206,13 @@ jobs:
           echo "| Validate Rubrics | $rubrics |" >> $GITHUB_STEP_SUMMARY
           echo "| Validate Config | $config |" >> $GITHUB_STEP_SUMMARY
           echo "| Validate Time Logs | $timelogs |" >> $GITHUB_STEP_SUMMARY
+          echo "| Validate Expense Logs | $expenselogs |" >> $GITHUB_STEP_SUMMARY
+          echo "| Validate Friction Logs | $frictionlogs |" >> $GITHUB_STEP_SUMMARY
           echo "| Validate Docs | $docs |" >> $GITHUB_STEP_SUMMARY
           
           if [ "$rubrics" != "success" ] || [ "$config" != "success" ] || \
-             [ "$timelogs" != "success" ] || [ "$docs" != "success" ]; then
+             [ "$timelogs" != "success" ] || [ "$expenselogs" != "success" ] || \
+             [ "$frictionlogs" != "success" ] || [ "$docs" != "success" ]; then
             echo ""
             echo "❌ One or more validation jobs failed"
             exit 1

@@ -144,3 +144,42 @@ def test_generate_month_end_with_missing_data(tmp_path: Path) -> None:
     assert "No deliverables recorded." in content
     assert "No reviews recorded." in content
     assert "No expenses recorded." in content
+
+
+def test_generate_month_end_warns_on_invalid_hours_and_filters_pr_links(
+    tmp_path: Path,
+) -> None:
+    (tmp_path / "logs" / "time").mkdir(parents=True)
+
+    write_time_log(
+        tmp_path / "logs" / "time" / "2024-03.csv",
+        [
+            {
+                "date": "2024-03-01",
+                "hours": "2.0",
+                "repo": "Collab-Admin",
+                "issue_or_pr": "PR-200",
+                "category": "feature",
+                "description": "Valid work",
+                "artifact_link": "https://github.com/org/repo/pull/200",
+            },
+            {
+                "date": "2024-03-02",
+                "hours": "oops",
+                "repo": "Collab-Admin",
+                "issue_or_pr": "PR-201",
+                "category": "feature",
+                "description": "Invalid hours",
+                "artifact_link": "https://example.com/not-a-pr",
+            },
+        ],
+    )
+
+    output_path = generate_month_end.generate_month_end("2024-03", tmp_path)
+
+    content = output_path.read_text(encoding="utf-8")
+    assert "Total hours: 2.00" in content
+    assert "Warnings:" in content
+    assert "Skipped row with invalid hours" in content
+    assert "https://github.com/org/repo/pull/200" in content
+    assert "https://example.com/not-a-pr" not in content

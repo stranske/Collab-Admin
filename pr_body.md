@@ -1,27 +1,24 @@
 <!-- pr-preamble:start -->
-> **Source:** Issue #16
+> **Source:** Issue #41
 
 <!-- pr-preamble:end -->
 
 <!-- auto-status-summary:start -->
 ## Automated Status Summary
 #### Scope
-The `.github/workflows/ci_admin.yml` is a stub workflow. It needs jobs to validate Collab-Admin specific files like rubrics, review records, and time logs.
+Per docs/05-definition-of-done.md, every PR must include a completed submission packet (templates/submission_packet.md). Currently there is no automated validation that submission packets are complete.
 
 #### Tasks
-- [x] Add job to validate all YAML files in `rubrics/` are parseable
-- [x] Add job to validate rubric files have required structure (rubric_id, title, levels, dimensions)
-- [ ] Add job to validate `config/project.yml` and `config/dashboard_public.yml` schemas
-- [ ] Add job to lint markdown files in `docs/` for broken links
-- [ ] Add job to validate time log template format if `logs/time_log_template.csv` exists
-- [ ] Ensure all validation jobs report clear error messages
+- [x] Create `scripts/validate_submission_packet.py` that parses markdown and checks required sections
+- [x] Validator should check for: Issue number, Workstream, Deliverables, How to run/test, Evidence
+- [x] Add submission packet validation to `ci_admin.yml` for PRs
+- [x] Add unit tests for the validator
 
 #### Acceptance criteria
-- [ ] ci_admin.yml runs on pull_request events
-- [x] YAML validation job catches malformed rubric files
-- [ ] Config validation job ensures required fields exist
-- [ ] Markdown lint job reports broken internal links
-- [ ] All jobs use appropriate Python version and dependencies
-- [ ] Workflow passes when all files are valid
+- [x] Validator detects missing required sections
+- [x] Validator accepts well-formed submission packets
+- [x] Clear error messages indicate which sections are missing
+- [ ] CI can run validation on PR descriptions or linked files
+- [x] All tests pass
 
 <!-- auto-status-summary:end -->

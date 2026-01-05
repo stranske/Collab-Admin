@@ -559,7 +559,9 @@ def main(argv: list[str] | None = None) -> int:
         except ValueError:
             print(f"Invalid --now value: {args.now}", file=sys.stderr)
             return 2
-        now = now.replace(tzinfo=dt.UTC) if now.tzinfo is None else now.astimezone(dt.UTC)
+        now = (
+            now.replace(tzinfo=dt.UTC) if now.tzinfo is None else now.astimezone(dt.UTC)
+        )
 
     markdown = build_dashboard(
         time_log_dir=args.time_log_dir,

@@ -76,6 +76,18 @@ class CiHealthSummary:
     latest_summary: dict[str, Any] | None
 
 
+@dataclass(frozen=True)
+class EcosystemSummary:
+    workflows_source: str
+    total_workflows: int
+    workflows_using_reusable: int
+    unique_refs: list[tuple[str, str, str]]  # (repo, workflow, ref)
+    keepalive_enabled_count: int
+    agent_pr_count: int
+    last_sync_commit: str | None
+    collected_at: str | None
+
+
 def _format_float(value: float) -> str:
     text = f"{value:.2f}"
     text = text.rstrip("0").rstrip(".")
@@ -463,12 +475,99 @@ def _render_ci_section(summary: CiHealthSummary) -> list[str]:
     return lines
 
 
+DEFAULT_ECOSYSTEM_STATUS = Path("logs/ecosystem_status.json")
+
+
+def _load_ecosystem_status(path: Path) -> EcosystemSummary | None:
+    """Load ecosystem status from JSON file."""
+    if not path.is_file():
+        return None
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    if not isinstance(data, dict):
+        return None
+
+    # Extract unique workflow references
+    refs = data.get("workflow_references", [])
+    unique_refs: list[tuple[str, str, str]] = []
+    seen: set[tuple[str, str, str]] = set()
+    for ref in refs:
+        if isinstance(ref, dict):
+            key = (
+                ref.get("referenced_repo", ""),
+                ref.get("referenced_workflow", ""),
+                ref.get("ref", ""),
+            )
+            if key not in seen and key[0]:
+                seen.add(key)
+                unique_refs.append(key)
+
+    return EcosystemSummary(
+        workflows_source=data.get("workflows_source", "unknown"),
+        total_workflows=data.get("total_workflows", 0),
+        workflows_using_reusable=data.get("workflows_using_reusable", 0),
+        unique_refs=unique_refs,
+        keepalive_enabled_count=data.get("keepalive_enabled_count", 0),
+        agent_pr_count=len(data.get("agent_prs", [])),
+        last_sync_commit=data.get("last_sync_commit"),
+        collected_at=data.get("collected_at"),
+    )
+
+
+def _render_ecosystem_section(summary: EcosystemSummary | None) -> list[str]:
+    """Render the Workflows ecosystem linkage section."""
+    lines = ["## Workflows Ecosystem Linkage"]
+
+    if summary is None:
+        lines.append("No ecosystem status data available.")
+        lines.append("")
+        lines.append(
+            "*Run `python scripts/collect_ecosystem_status.py` to collect data.*"
+        )
+        return lines
+
+    lines.append(f"Source: `{summary.workflows_source}`")
+    lines.append("")
+
+    # Workflow statistics
+    lines.append("### Workflow Integration")
+    lines.append(f"- Total workflows: {summary.total_workflows}")
+    lines.append(f"- Using reusable workflows: {summary.workflows_using_reusable}")
+
+    if summary.unique_refs:
+        lines.append("")
+        lines.append("**Reusable workflow references:**")
+        for repo, workflow, ref in sorted(summary.unique_refs):
+            lines.append(f"- `{repo}`: {workflow} @ {ref}")
+
+    # Agent automation status
+    lines.append("")
+    lines.append("### Agent Automation Status")
+    lines.append(f"- PRs with agent labels: {summary.agent_pr_count}")
+    lines.append(f"- Keepalive enabled: {summary.keepalive_enabled_count}")
+
+    # Sync status
+    if summary.last_sync_commit:
+        lines.append("")
+        lines.append("### Last Sync")
+        lines.append(f"- Commit: `{summary.last_sync_commit}`")
+
+    if summary.collected_at:
+        lines.append("")
+        lines.append(f"*Data collected: {summary.collected_at}*")
+
+    return lines
+
+
 def build_dashboard(
     *,
     time_log_dir: Path,
     reviews_dir: Path,
     ci_history_path: Path,
     issue_pr_path: Path,
+    ecosystem_status_path: Path,
     config_path: Path,
     now: dt.datetime | None = None,
     recent_ci_runs: int = DEFAULT_RECENT_CI_RUNS,
@@ -480,6 +579,7 @@ def build_dashboard(
     ci_summary = _summarize_ci_history(
         _load_ci_history(ci_history_path), recent_limit=recent_ci_runs
     )
+    ecosystem_summary = _load_ecosystem_status(ecosystem_status_path)
 
     timestamp = now or dt.datetime.now(dt.UTC)
     updated = timestamp.strftime("%Y-%m-%d %H:%M:%S UTC")
@@ -493,6 +593,8 @@ def build_dashboard(
     sections.extend(_render_issue_pr_section(issue_pr_summary))
     sections.append("")
     sections.extend(_render_ci_section(ci_summary))
+    sections.append("")
+    sections.extend(_render_ecosystem_section(ecosystem_summary))
     sections.append("")
 
     return "\n".join(sections).rstrip() + "\n"
@@ -533,6 +635,12 @@ def main(argv: list[str] | None = None) -> int:
         help="JSON/YAML file containing issue and PR metrics.",
     )
     parser.add_argument(
+        "--ecosystem-status",
+        type=Path,
+        default=DEFAULT_ECOSYSTEM_STATUS,
+        help="JSON file containing ecosystem linkage status.",
+    )
+    parser.add_argument(
         "--config",
         type=Path,
         default=DEFAULT_CONFIG_PATH,
@@ -568,6 +676,7 @@ def main(argv: list[str] | None = None) -> int:
         reviews_dir=args.reviews_dir,
         ci_history_path=args.ci_history,
         issue_pr_path=args.issue_pr_path,
+        ecosystem_status_path=args.ecosystem_status,
         config_path=args.config,
         now=now,
         recent_ci_runs=args.recent_ci_runs,

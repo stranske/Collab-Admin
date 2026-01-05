@@ -59,6 +59,11 @@ def write_config(path: Path, show_numeric: bool) -> None:
     path.write_text(yaml.safe_dump(payload), encoding="utf-8")
 
 
+def write_ecosystem_status(path: Path, data: dict[str, object]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(data), encoding="utf-8")
+
+
 def test_build_dashboard_with_data(tmp_path: Path) -> None:
     time_log = tmp_path / "logs" / "time" / "2025-01.csv"
     write_time_log(
@@ -155,11 +160,36 @@ def test_build_dashboard_with_data(tmp_path: Path) -> None:
     config_path = tmp_path / "config" / "dashboard_public.yml"
     write_config(config_path, show_numeric=False)
 
+    ecosystem_path = tmp_path / "logs" / "ecosystem_status.json"
+    write_ecosystem_status(
+        ecosystem_path,
+        {
+            "workflows_source": "stranske/Workflows",
+            "collected_at": "2025-01-05T11:00:00Z",
+            "total_workflows": 5,
+            "workflows_using_reusable": 3,
+            "workflow_references": [
+                {
+                    "workflow_file": "ci.yml",
+                    "referenced_repo": "stranske/Workflows",
+                    "referenced_workflow": "reusable-ci.yml",
+                    "ref": "main",
+                }
+            ],
+            "agent_prs": [
+                {"pr_number": 1, "title": "Test PR", "has_keepalive": True, "has_agent_codex": False, "state": "open"}
+            ],
+            "keepalive_enabled_count": 1,
+            "last_sync_commit": "abc1234",
+        },
+    )
+
     dashboard = build_static_dashboard.build_dashboard(
         time_log_dir=time_log.parent,
         reviews_dir=review_path.parents[1],
         ci_history_path=ci_history,
         issue_pr_path=issue_pr_path,
+        ecosystem_status_path=ecosystem_path,
         config_path=config_path,
         now=datetime(2025, 1, 5, 12, 0, 0, tzinfo=UTC),
         recent_ci_runs=3,
@@ -183,6 +213,8 @@ def test_build_dashboard_with_data(tmp_path: Path) -> None:
         "Latest run: 2025-01-03T00:00:00Z - failed (tests: 10, failures: 1, errors: 0)"
         in dashboard
     )
+    assert "## Workflows Ecosystem Linkage" in dashboard
+    assert "stranske/Workflows" in dashboard
 
 
 def test_build_dashboard_shows_numeric_average_when_enabled(tmp_path: Path) -> None:
@@ -202,6 +234,7 @@ def test_build_dashboard_shows_numeric_average_when_enabled(tmp_path: Path) -> N
         reviews_dir=review_path.parents[1],
         ci_history_path=tmp_path / "logs" / "ci" / "metrics-history.ndjson",
         issue_pr_path=tmp_path / "logs" / "issue_pr_metrics.json",
+        ecosystem_status_path=tmp_path / "logs" / "ecosystem_status.json",
         config_path=config_path,
         now=datetime(2025, 2, 1, 12, 0, 0, tzinfo=UTC),
         recent_ci_runs=3,
@@ -216,6 +249,7 @@ def test_build_dashboard_handles_missing_data(tmp_path: Path) -> None:
         reviews_dir=tmp_path / "reviews",
         ci_history_path=tmp_path / "logs" / "ci" / "metrics-history.ndjson",
         issue_pr_path=tmp_path / "logs" / "issue_pr_metrics.json",
+        ecosystem_status_path=tmp_path / "logs" / "ecosystem_status.json",
         config_path=tmp_path / "config" / "dashboard_public.yml",
         now=datetime(2025, 3, 1, 12, 0, 0, tzinfo=UTC),
         recent_ci_runs=3,
@@ -225,3 +259,4 @@ def test_build_dashboard_handles_missing_data(tmp_path: Path) -> None:
     assert "No reviews found." in dashboard
     assert "No issue/PR metrics available." in dashboard
     assert "No CI history available." in dashboard
+    assert "No ecosystem status data available." in dashboard

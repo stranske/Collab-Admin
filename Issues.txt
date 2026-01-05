@@ -70,7 +70,7 @@ Non-Goals
 Tasks
 - [x] Update workflow template to cover pull_request ready_for_review events
 - [ ] Copy templates/auto-revision-issues.yml to .github/workflows/auto-revision-issues.yml
-- [ ] Verify the workflow triggers on review file changes
+- [x] Verify the workflow triggers on review file changes
 
 Acceptance criteria
 - [ ] Workflow runs on review changes and creates issues

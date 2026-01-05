@@ -6,10 +6,10 @@ import argparse
 import csv
 import re
 from collections import defaultdict
+from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Iterable
 
 import yaml
 
@@ -159,7 +159,8 @@ def _load_expenses(path: Path) -> list[ExpenseEntry]:
                 date=(row.get("date") or "").strip(),
                 amount=amount,
                 currency=(row.get("currency") or "unknown").strip() or "unknown",
-                category=(row.get("category") or "unspecified").strip() or "unspecified",
+                category=(row.get("category") or "unspecified").strip()
+                or "unspecified",
                 description=(row.get("description") or "").strip(),
                 receipt_link=(row.get("receipt_link") or "").strip(),
                 issue_or_pr=(row.get("issue_or_pr") or "").strip(),

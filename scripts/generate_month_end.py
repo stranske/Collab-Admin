@@ -130,7 +130,13 @@ def _load_reviews(review_dir: Path) -> list[ReviewRecord]:
 
 def _summarize_reviews(records: Iterable[ReviewRecord]) -> str:
     records = list(records)
-    lines = [f"Total reviews: {len(records)}"]
+    total_reviews = len(records)
+    reviews_with_followups = sum(1 for record in records if record.follow_up_required)
+    total_required_followups = sum(record.follow_up_required for record in records)
+    lines = [f"Total reviews: {total_reviews}"]
+    if total_reviews:
+        lines.append(f"Reviews with required follow-ups: {reviews_with_followups}")
+        lines.append(f"Total required follow-ups: {total_required_followups}")
     for record in records:
         lines.append(
             " - ".join(

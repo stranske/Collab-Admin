@@ -129,6 +129,8 @@ def test_generate_month_end_with_data(tmp_path: Path) -> None:
     assert "- review: 1.50" in content
     assert "https://github.com/org/repo/pull/123" in content
     assert "Total reviews: 1" in content
+    assert "Reviews with required follow-ups: 1" in content
+    assert "Total required follow-ups: 1" in content
     assert "PR #123" in content
     assert "USD: 100.00" in content
     assert "Taxi to client site" in content

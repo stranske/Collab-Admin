@@ -35,9 +35,7 @@ def test_validate_rubrics_ok(tmp_path: Path) -> None:
         ),
         encoding="utf-8",
     )
-    (rubrics_dir / "rubric_index.yml").write_text(
-        "rubrics:\n  - sample.yml\n", encoding="utf-8"
-    )
+    (rubrics_dir / "rubric_index.yml").write_text("rubrics:\n  - sample.yml\n", encoding="utf-8")
 
     result = _run_validator(rubrics_dir, "--check-structure")
 

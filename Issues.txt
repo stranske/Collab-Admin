@@ -54,3 +54,26 @@ Implementation notes
 - Target Python 3.11+ 
 - Use src layout for package
 - Follow strict mypy configuration
+
+2) Add auto-revision-issues workflow for review follow-ups
+Labels: needs-human, workflow
+
+Why
+Creating the workflow requires editing protected files under .github/workflows.
+
+Scope
+- Add the workflow that runs on review record changes to create follow-up issues
+
+Non-Goals
+- Adjusting the create_revision_issues script logic
+
+Tasks
+- [ ] Copy templates/auto-revision-issues.yml to .github/workflows/auto-revision-issues.yml
+- [ ] Verify the workflow triggers on review file changes
+
+Acceptance criteria
+- [ ] Workflow runs on review changes and creates issues
+
+Implementation notes
+- Requires agent-high-privilege due to workflow file edits.
+- Use templates/auto-revision-issues.yml as the source.

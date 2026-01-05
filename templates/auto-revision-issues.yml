@@ -1,0 +1,92 @@
+# needs-human: Copy this template to .github/workflows/auto-revision-issues.yml with agent-high-privilege.
+# This file is kept outside protected workflows per repo security rules.
+name: Auto Revision Issues
+
+on:
+  push:
+    paths:
+      - "reviews/**/*.yml"
+      - "reviews/**/*.yaml"
+  pull_request:
+    paths:
+      - "reviews/**/*.yml"
+      - "reviews/**/*.yaml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: read
+
+jobs:
+  create-revision-issues:
+    name: Create revision issues
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Collect changed review files
+        id: changed
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const reviewFiles = new Set();
+            if (context.eventName === 'pull_request') {
+              const files = await github.paginate(
+                github.rest.pulls.listFiles,
+                {
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  pull_number: context.payload.pull_request.number,
+                  per_page: 100,
+                }
+              );
+              for (const file of files) {
+                if (file.filename.startsWith('reviews/')
+                    && (file.filename.endsWith('.yml') || file.filename.endsWith('.yaml'))) {
+                  reviewFiles.add(file.filename);
+                }
+              }
+            } else if (context.eventName === 'push') {
+              const base = context.payload.before;
+              const head = context.sha;
+              if (base) {
+                const comparison = await github.rest.repos.compareCommits({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  base,
+                  head,
+                });
+                for (const file of comparison.data.files || []) {
+                  if (file.filename.startsWith('reviews/')
+                      && (file.filename.endsWith('.yml') || file.filename.endsWith('.yaml'))) {
+                    reviewFiles.add(file.filename);
+                  }
+                }
+              }
+            }
+            const filesList = Array.from(reviewFiles);
+            core.setOutput('review_files', filesList.join('\n'));
+            core.setOutput('has_files', filesList.length ? 'true' : 'false');
+
+      - name: Install script dependencies
+        if: steps.changed.outputs.has_files == 'true'
+        run: python -m pip install pyyaml
+
+      - name: Create revision issues
+        if: steps.changed.outputs.has_files == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          review_files="${{ steps.changed.outputs.review_files }}"
+          if [ -z "$review_files" ]; then
+            echo "No review files to process."
+            exit 0
+          fi
+          python scripts/create_revision_issues.py $review_files

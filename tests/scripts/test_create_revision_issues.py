@@ -7,7 +7,6 @@ import subprocess
 from pathlib import Path
 
 import yaml
-
 from scripts.create_revision_issues import (
     FollowUpIssue,
     ReviewRecord,

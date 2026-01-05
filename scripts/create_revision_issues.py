@@ -7,9 +7,9 @@ import json
 import os
 import subprocess
 import sys
+from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterable
 
 import yaml
 
@@ -48,7 +48,9 @@ def _load_yaml(path: Path) -> dict[str, object]:
     return payload
 
 
-def _require_field(payload: dict[str, object], name: str, field_type: type, source: Path) -> object:
+def _require_field(
+    payload: dict[str, object], name: str, field_type: type, source: Path
+) -> object:
     value = payload.get(name)
     if not isinstance(value, field_type):
         raise SystemExit(
@@ -57,7 +59,9 @@ def _require_field(payload: dict[str, object], name: str, field_type: type, sour
     return value
 
 
-def _parse_follow_up_items(raw_items: object, source: Path) -> tuple[FollowUpIssue, ...]:
+def _parse_follow_up_items(
+    raw_items: object, source: Path
+) -> tuple[FollowUpIssue, ...]:
     if raw_items is None:
         return ()
     if not isinstance(raw_items, list):
@@ -74,7 +78,9 @@ def _parse_follow_up_items(raw_items: object, source: Path) -> tuple[FollowUpIss
         if not isinstance(description, str) or not description.strip():
             raise SystemExit(f"follow_up_issues entry missing description in {source}")
         if not isinstance(required, bool):
-            raise SystemExit(f"follow_up_issues entry required must be boolean in {source}")
+            raise SystemExit(
+                f"follow_up_issues entry required must be boolean in {source}"
+            )
         parsed.append(
             FollowUpIssue(
                 issue_id=issue_id.strip(),
@@ -220,21 +226,25 @@ def process_review(
     review_reference = _review_reference(review_path)
     actions: list[IssueAction] = []
     follow_ups = (
-        issue
-        for issue in review.follow_up_issues
-        if issue.required or include_optional
+        issue for issue in review.follow_up_issues if issue.required or include_optional
     )
     for follow_up in follow_ups:
         title = build_issue_title(review, follow_up)
         body = build_issue_body(review, follow_up, review_reference, repo)
         if dry_run:
-            actions.append(IssueAction(issue_id=follow_up.issue_id, status="dry-run", url=None))
+            actions.append(
+                IssueAction(issue_id=follow_up.issue_id, status="dry-run", url=None)
+            )
             continue
         if _issue_exists(follow_up, review_reference, repo, runner=runner):
-            actions.append(IssueAction(issue_id=follow_up.issue_id, status="skipped", url=None))
+            actions.append(
+                IssueAction(issue_id=follow_up.issue_id, status="skipped", url=None)
+            )
             continue
         url = _create_issue(title, body, label, repo, runner=runner)
-        actions.append(IssueAction(issue_id=follow_up.issue_id, status="created", url=url))
+        actions.append(
+            IssueAction(issue_id=follow_up.issue_id, status="created", url=url)
+        )
     return actions
 
 

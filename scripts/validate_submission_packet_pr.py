@@ -10,11 +10,11 @@ import re
 import sys
 from pathlib import Path
 
+# Add script directory to path before local imports
 SCRIPT_DIR = Path(__file__).resolve().parent
-if str(SCRIPT_DIR) not in sys.path:
-    sys.path.insert(0, str(SCRIPT_DIR))
+sys.path.insert(0, str(SCRIPT_DIR))
 
-from validate_submission_packet import (
+from validate_submission_packet import (  # noqa: E402
     REQUIRED_SECTIONS,
     SECTION_LINE_RE,
     validate_submission_packet,

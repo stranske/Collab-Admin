@@ -177,7 +177,13 @@ def test_build_dashboard_with_data(tmp_path: Path) -> None:
                 }
             ],
             "agent_prs": [
-                {"pr_number": 1, "title": "Test PR", "has_keepalive": True, "has_agent_codex": False, "state": "open"}
+                {
+                    "pr_number": 1,
+                    "title": "Test PR",
+                    "has_keepalive": True,
+                    "has_agent_codex": False,
+                    "state": "open",
+                }
             ],
             "keepalive_enabled_count": 1,
             "last_sync_commit": "abc1234",

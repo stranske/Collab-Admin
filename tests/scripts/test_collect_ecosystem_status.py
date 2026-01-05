@@ -1,14 +1,11 @@
 """Tests for collect_ecosystem_status.py."""
+
 from __future__ import annotations
 
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-import pytest
-
 from scripts.collect_ecosystem_status import (
-    EcosystemStatus,
-    WorkflowReference,
     _collect_workflow_references,
     _parse_workflow_references,
     collect_ecosystem_status,

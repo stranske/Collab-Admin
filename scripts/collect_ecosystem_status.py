@@ -79,9 +79,7 @@ def _parse_workflow_references(workflow_path: Path) -> list[WorkflowReference]:
         return references
 
     # Pattern: owner/repo/.github/workflows/file.yml@ref
-    uses_pattern = re.compile(
-        r"^([^/]+/[^/]+)/\.github/workflows/([^@]+)@(.+)$"
-    )
+    uses_pattern = re.compile(r"^([^/]+/[^/]+)/\.github/workflows/([^@]+)@(.+)$")
 
     for _job_name, job_config in jobs.items():
         if not isinstance(job_config, dict):

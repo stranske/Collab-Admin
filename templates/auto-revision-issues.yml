@@ -8,6 +8,7 @@ on:
       - "reviews/**/*.yml"
       - "reviews/**/*.yaml"
   pull_request:
+    types: [opened, synchronize, reopened]
     paths:
       - "reviews/**/*.yml"
       - "reviews/**/*.yaml"
@@ -56,18 +57,37 @@ jobs:
             } else if (context.eventName === 'push') {
               const base = context.payload.before;
               const head = context.sha;
+              let pushFiles = [];
               if (base) {
-                const comparison = await github.rest.repos.compareCommits({
-                  owner: context.repo.owner,
-                  repo: context.repo.repo,
-                  base,
-                  head,
-                });
-                for (const file of comparison.data.files || []) {
-                  if (file.filename.startsWith('reviews/')
-                      && (file.filename.endsWith('.yml') || file.filename.endsWith('.yaml'))) {
-                    reviewFiles.add(file.filename);
+                try {
+                  const comparison = await github.rest.repos.compareCommits({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    base,
+                    head,
+                  });
+                  pushFiles = comparison.data.files || [];
+                } catch (error) {
+                  core.warning(`compareCommits failed: ${error.message}`);
+                }
+              }
+              if (!pushFiles.length) {
+                const commits = context.payload.commits || [];
+                const changed = [];
+                for (const commit of commits) {
+                  for (const filename of commit.added || []) {
+                    changed.push({ filename });
                   }
+                  for (const filename of commit.modified || []) {
+                    changed.push({ filename });
+                  }
+                }
+                pushFiles = changed;
+              }
+              for (const file of pushFiles) {
+                if (file.filename.startsWith('reviews/')
+                    && (file.filename.endsWith('.yml') || file.filename.endsWith('.yaml'))) {
+                  reviewFiles.add(file.filename);
                 }
               }
             }

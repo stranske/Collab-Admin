@@ -77,3 +77,4 @@ Acceptance criteria
 Implementation notes
 - Requires agent-high-privilege due to workflow file edits.
 - Use templates/auto-revision-issues.yml as the source.
+- Status: Workflow copy blocked; requires agent-high-privilege to place template in .github/workflows.

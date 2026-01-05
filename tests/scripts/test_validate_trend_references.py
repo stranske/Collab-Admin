@@ -9,9 +9,7 @@ from pathlib import Path
 
 def load_module():
     script_path = (
-        Path(__file__).resolve().parents[2]
-        / "scripts"
-        / "validate_trend_references.py"
+        Path(__file__).resolve().parents[2] / "scripts" / "validate_trend_references.py"
     )
     spec = importlib.util.spec_from_file_location(
         "validate_trend_references", script_path

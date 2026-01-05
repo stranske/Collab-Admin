@@ -100,7 +100,9 @@ def _extract_category(line: str) -> str | None:
     return _normalize_category(text)
 
 
-def _resolve_reference_path(base_dir: Path, source_dir: Path, ref_path: str) -> Path | None:
+def _resolve_reference_path(
+    base_dir: Path, source_dir: Path, ref_path: str
+) -> Path | None:
     candidate = Path(ref_path)
     if candidate.is_absolute():
         return candidate
@@ -222,7 +224,7 @@ def _check_reference_files(
 
 
 def _check_category_minimums(references: list[Reference]) -> list[str]:
-    counts = {key: 0 for key in CATEGORY_MINIMUMS}
+    counts = dict.fromkeys(CATEGORY_MINIMUMS, 0)
     for ref in references:
         if ref.category in counts:
             counts[ref.category] += 1

@@ -6,6 +6,7 @@ __pycache__/
 dist/
 build/
 .venv/
+poetry.lock
 
 # Test/coverage artifacts
 .coverage
@@ -24,11 +25,18 @@ artifacts/
 autofix_report_enriched.json
 codex-session-*.jsonl
 codex-analysis-*.json
+pr_body.md
 
 # PR-specific codex files
 codex-prompt-*.md
 codex-output-*.md
 
-# Time logs (except template)
-logs/*.csv
+# Logs (except templates)
+logs/time/*.csv
+logs/expenses/*.csv
+logs/friction/*.csv
+logs/month_end/*.md
 !logs/time_log_template.csv
+!logs/expenses/expense_template.csv
+!logs/friction/friction_template.csv
+!logs/month_end/template.md

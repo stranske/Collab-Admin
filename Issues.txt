@@ -68,6 +68,7 @@ Non-Goals
 - Adjusting the create_revision_issues script logic
 
 Tasks
+- [x] Update workflow template to cover pull_request ready_for_review events
 - [ ] Copy templates/auto-revision-issues.yml to .github/workflows/auto-revision-issues.yml
 - [ ] Verify the workflow triggers on review file changes
 

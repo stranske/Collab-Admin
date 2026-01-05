@@ -11,6 +11,7 @@ def test_auto_revision_workflow_template_triggers_review_paths() -> None:
 
     assert "push:" in content
     assert "pull_request:" in content
+    assert "ready_for_review" in content
     assert "reviews/**/*.yml" in content
     assert "reviews/**/*.yaml" in content
 

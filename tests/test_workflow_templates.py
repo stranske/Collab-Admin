@@ -23,8 +23,12 @@ def test_auto_revision_workflow_template_triggers_review_paths() -> None:
 
     push_paths = push.get("paths")
     pr_paths = pull_request.get("paths")
+    assert "reviews/*.yml" in push_paths
+    assert "reviews/*.yaml" in push_paths
     assert "reviews/**/*.yml" in push_paths
     assert "reviews/**/*.yaml" in push_paths
+    assert "reviews/*.yml" in pr_paths
+    assert "reviews/*.yaml" in pr_paths
     assert "reviews/**/*.yml" in pr_paths
     assert "reviews/**/*.yaml" in pr_paths
 

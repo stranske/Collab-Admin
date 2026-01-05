@@ -5,11 +5,15 @@ name: Auto Revision Issues
 on:
   push:
     paths:
+      - "reviews/*.yml"
+      - "reviews/*.yaml"
       - "reviews/**/*.yml"
       - "reviews/**/*.yaml"
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
     paths:
+      - "reviews/*.yml"
+      - "reviews/*.yaml"
       - "reviews/**/*.yml"
       - "reviews/**/*.yaml"
   workflow_dispatch:

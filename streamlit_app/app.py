@@ -557,3 +557,129 @@ else:
         )
         st.altair_chart(chart, use_container_width=True)
         st.dataframe(rating_summary, use_container_width=True)
+
+# =============================================================================
+# GitHub Integration Section
+# =============================================================================
+
+st.header("GitHub Activity")
+
+try:
+    from streamlit_app.github_client import fetch_all_github_data
+
+    github_data = fetch_all_github_data()
+
+    if github_data.error:
+        st.warning(github_data.error)
+    else:
+        # Issues summary
+        col1, col2, col3 = st.columns(3)
+
+        open_issues = [i for i in github_data.issues if i.state == "open"]
+        open_prs = [p for p in github_data.pull_requests if p.state == "open"]
+        recent_runs = github_data.workflow_runs[:5]
+
+        with col1:
+            st.metric("Open Issues", len(open_issues))
+        with col2:
+            st.metric("Open PRs", len(open_prs))
+        with col3:
+            passing = sum(1 for r in recent_runs if r.conclusion == "success")
+            st.metric("CI Pass Rate (last 5)", f"{passing}/5")
+
+        # Issues table
+        st.subheader("Recent Issues")
+        if github_data.issues:
+            issue_rows = []
+            for issue in github_data.issues[:10]:
+                issue_rows.append(
+                    {
+                        "#": issue.number,
+                        "Title": issue.title,
+                        "State": issue.state,
+                        "Labels": ", ".join(issue.labels[:3]),
+                        "Author": issue.author,
+                        "Updated": issue.updated_at.strftime("%Y-%m-%d"),
+                    }
+                )
+            st.dataframe(
+                pd.DataFrame(issue_rows), use_container_width=True, hide_index=True
+            )
+        else:
+            st.info("No issues found or GitHub API unavailable.")
+
+        # PRs table
+        st.subheader("Recent Pull Requests")
+        if github_data.pull_requests:
+            pr_rows = []
+            for pr in github_data.pull_requests[:10]:
+                pr_rows.append(
+                    {
+                        "#": pr.number,
+                        "Title": pr.title,
+                        "State": pr.state,
+                        "Labels": ", ".join(pr.labels[:3]),
+                        "Author": pr.author,
+                        "Updated": pr.updated_at.strftime("%Y-%m-%d"),
+                    }
+                )
+            st.dataframe(
+                pd.DataFrame(pr_rows), use_container_width=True, hide_index=True
+            )
+        else:
+            st.info("No pull requests found or GitHub API unavailable.")
+
+        # CI Status
+        st.subheader("Recent CI Runs")
+        if github_data.workflow_runs:
+            run_rows = []
+            for run in github_data.workflow_runs[:10]:
+                status_emoji = {
+                    "success": "✅",
+                    "failure": "❌",
+                    "cancelled": "⏹️",
+                    "skipped": "⏭️",
+                    None: "🔄",
+                }.get(run.conclusion, "❓")
+                run_rows.append(
+                    {
+                        "Workflow": run.name,
+                        "Status": f"{status_emoji} {run.conclusion or run.status}",
+                        "Branch": run.head_branch,
+                        "Date": run.created_at.strftime("%Y-%m-%d %H:%M"),
+                    }
+                )
+            st.dataframe(
+                pd.DataFrame(run_rows), use_container_width=True, hide_index=True
+            )
+        else:
+            st.info("No workflow runs found or GitHub API unavailable.")
+
+except ImportError:
+    st.info(
+        "GitHub integration requires 'requests' package. Install with: pip install requests"
+    )
+except Exception as e:
+    st.warning(f"GitHub integration error: {e}")
+
+# =============================================================================
+# Review Console Section
+# =============================================================================
+
+st.header("Review Console")
+
+try:
+    from streamlit_app.review_console import render_review_console
+
+    # Get workstream names for the dropdown
+    workstream_names = [ws["name"] for ws in workstreams]
+
+    render_review_console(
+        workstreams=workstream_names,
+        rubrics_path=Path("rubrics"),
+        reviews_path=reviews_path,
+    )
+except ImportError as e:
+    st.warning(f"Review console not available: {e}")
+except Exception as e:
+    st.warning(f"Review console error: {e}")

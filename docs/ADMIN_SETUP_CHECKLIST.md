@@ -11,7 +11,7 @@ This checklist tracks the remaining work to complete Collab-Admin setup after in
 | Phase B | Sync registration in Workflows | ✅ Complete |
 | Phase C | Code work via GitHub Issues | ✅ Complete |
 | Phase P0-P2 | Instrumentation roadmap (boot/rubrics/validators) | ✅ Complete |
-| Phase P3 | Dashboard MVP | 🔵 In Progress |
+| Phase P3 | Dashboard MVP | ✅ Complete |
 | Phase P4 | Static dashboard + report PRs | ✅ Basic setup |
 | Phase P5 | Tighten (auto-open revision issues) | ⏳ Not started |
 
@@ -69,12 +69,12 @@ See [docs/13-project-instrumentation-roadmap.md](13-project-instrumentation-road
 - [x] Config validator (`validate_config.py`)
 - [x] Rubric validator (`validate_rubrics.py`)
 
-### Phase P3: Dashboard MVP 🔵
+### Phase P3: Dashboard MVP ✅
 - [x] Streamlit app exists (`streamlit_app/app.py`)
 - [x] Reads time logs and displays charts
 - [x] Reads review records
-- [ ] **TODO:** Add GitHub metadata integration (Issues/PRs/CI status)
-- [ ] **TODO:** Review Console for writing review YAML
+- [x] GitHub metadata integration (Issues/PRs/CI status) - PR #38
+- [x] Review Console for writing review YAML - PR #38
 
 ### Phase P4: Static Dashboard ✅ (Basic)
 - [x] `build_dashboard.yml` workflow exists
@@ -132,5 +132,6 @@ See [docs/13-project-instrumentation-roadmap.md](13-project-instrumentation-road
 
 | Date | Changes |
 |------|---------|
+| 2026-01-04 | Phase P3 complete - GitHub integration and Review Console (PR #38) |
 | 2026-01-04 | Updated with completed phases A, B, C and roadmap status |
 | 2026-01-04 | Initial checklist created |

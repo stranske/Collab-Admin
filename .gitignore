@@ -25,6 +25,7 @@ artifacts/
 autofix_report_enriched.json
 codex-session-*.jsonl
 codex-analysis-*.json
+pr_body.md
 
 # PR-specific codex files
 codex-prompt-*.md

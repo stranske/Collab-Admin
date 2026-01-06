@@ -102,9 +102,7 @@ def generate_review_yaml(
         "follow_up_issues": follow_ups if follow_ups else [],
     }
 
-    return yaml.dump(
-        record, default_flow_style=False, sort_keys=False, allow_unicode=True
-    )
+    return yaml.dump(record, default_flow_style=False, sort_keys=False, allow_unicode=True)
 
 
 def render_review_console(
@@ -200,9 +198,7 @@ def render_review_console(
 
     # Follow-up issues
     st.markdown("### Follow-up Issues")
-    num_followups = st.number_input(
-        "Number of follow-ups", min_value=0, max_value=5, value=0
-    )
+    num_followups = st.number_input("Number of follow-ups", min_value=0, max_value=5, value=0)
 
     follow_ups = []
     for i in range(int(num_followups)):

@@ -71,7 +71,9 @@ def load_workstreams(path: Path) -> tuple[list[dict[str, str]], str | None]:
     except Exception as exc:  # pragma: no cover - runtime feedback
         return DEFAULT_WORKSTREAMS, f"Unable to read workstream config: {exc}"
 
-    workstreams = data.get("project", {}).get("workstreams") if isinstance(data, dict) else None
+    workstreams = (
+        data.get("project", {}).get("workstreams") if isinstance(data, dict) else None
+    )
     if not isinstance(workstreams, list) or not workstreams:
         return DEFAULT_WORKSTREAMS, "Workstream config missing workstreams list."
 
@@ -189,13 +191,17 @@ def build_weekly_cap_chart(weekly: pd.DataFrame, cap_hours: float) -> alt.Chart:
         y=alt.Y("hours:Q", title="Hours"),
         color=alt.Color(
             "Status:N",
-            scale=alt.Scale(domain=["Within cap", "Over cap"], range=["#2a9d8f", "#e76f51"]),
+            scale=alt.Scale(
+                domain=["Within cap", "Over cap"], range=["#2a9d8f", "#e76f51"]
+            ),
             legend=alt.Legend(title="Cap status"),
         ),
         tooltip=["week", "hours", "Status"],
     )
     cap_rule = (
-        alt.Chart(pd.DataFrame({"Cap": [cap_hours]})).mark_rule(color="#264653").encode(y="Cap:Q")
+        alt.Chart(pd.DataFrame({"Cap": [cap_hours]}))
+        .mark_rule(color="#264653")
+        .encode(y="Cap:Q")
     )
     return alt.layer(bars, cap_rule)
 
@@ -327,8 +333,12 @@ def load_rubric_definitions(
             errors.append(f"Rubric {rubric_path} has invalid format.")
             continue
         raw_rubric_id = data.get("rubric_id")
-        rubric_id = raw_rubric_id if isinstance(raw_rubric_id, str) else rubric_path.stem
-        dims = data.get("dimensions") if isinstance(data.get("dimensions"), list) else []
+        rubric_id = (
+            raw_rubric_id if isinstance(raw_rubric_id, str) else rubric_path.stem
+        )
+        dims = (
+            data.get("dimensions") if isinstance(data.get("dimensions"), list) else []
+        )
         dim_lookup: dict[str, str] = {}
         for dim in dims:
             if not isinstance(dim, dict):
@@ -487,7 +497,9 @@ workstreams, workstream_error = load_workstreams(Path("config/project.yml"))
 if workstream_error:
     st.info(workstream_error)
 
-workstream_table, deliverable_status = compute_workstream_progress(workstreams, review_records)
+workstream_table, deliverable_status = compute_workstream_progress(
+    workstreams, review_records
+)
 st.dataframe(workstream_table, use_container_width=True)
 
 for name, statuses in deliverable_status.items():
@@ -590,7 +602,9 @@ try:
                         "Updated": issue.updated_at.strftime("%Y-%m-%d"),
                     }
                 )
-            st.dataframe(pd.DataFrame(issue_rows), use_container_width=True, hide_index=True)
+            st.dataframe(
+                pd.DataFrame(issue_rows), use_container_width=True, hide_index=True
+            )
         else:
             st.info("No issues found or GitHub API unavailable.")
 
@@ -609,7 +623,9 @@ try:
                         "Updated": pr.updated_at.strftime("%Y-%m-%d"),
                     }
                 )
-            st.dataframe(pd.DataFrame(pr_rows), use_container_width=True, hide_index=True)
+            st.dataframe(
+                pd.DataFrame(pr_rows), use_container_width=True, hide_index=True
+            )
         else:
             st.info("No pull requests found or GitHub API unavailable.")
 
@@ -633,12 +649,16 @@ try:
                         "Date": run.created_at.strftime("%Y-%m-%d %H:%M"),
                     }
                 )
-            st.dataframe(pd.DataFrame(run_rows), use_container_width=True, hide_index=True)
+            st.dataframe(
+                pd.DataFrame(run_rows), use_container_width=True, hide_index=True
+            )
         else:
             st.info("No workflow runs found or GitHub API unavailable.")
 
 except ImportError:
-    st.info("GitHub integration requires 'requests' package. Install with: pip install requests")
+    st.info(
+        "GitHub integration requires 'requests' package. Install with: pip install requests"
+    )
 except Exception as e:
     st.warning(f"GitHub integration error: {e}")
 

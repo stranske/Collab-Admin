@@ -13,7 +13,9 @@ import yaml
 
 
 def load_module():
-    script_path = Path(__file__).resolve().parents[2] / "scripts" / "build_static_dashboard.py"
+    script_path = (
+        Path(__file__).resolve().parents[2] / "scripts" / "build_static_dashboard.py"
+    )
     spec = importlib.util.spec_from_file_location("build_static_dashboard", script_path)
     module = importlib.util.module_from_spec(spec)
     sys.modules[spec.name] = module
@@ -28,7 +30,9 @@ build_static_dashboard = load_module()
 def write_time_log(path: Path, rows: list[dict[str, str]]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", newline="", encoding="utf-8") as handle:
-        writer = csv.DictWriter(handle, fieldnames=build_static_dashboard.TIME_LOG_FIELDS)
+        writer = csv.DictWriter(
+            handle, fieldnames=build_static_dashboard.TIME_LOG_FIELDS
+        )
         writer.writeheader()
         writer.writerows(rows)
 
@@ -212,7 +216,8 @@ def test_build_dashboard_with_data(tmp_path: Path) -> None:
     assert "PR #34 Add feature (2025-01-02)" in dashboard
     assert "Recent pass rate (last 3 runs): 66.67% (2/3)" in dashboard
     assert (
-        "Latest run: 2025-01-03T00:00:00Z - failed (tests: 10, failures: 1, errors: 0)" in dashboard
+        "Latest run: 2025-01-03T00:00:00Z - failed (tests: 10, failures: 1, errors: 0)"
+        in dashboard
     )
     assert "## Workflows Ecosystem Linkage" in dashboard
     assert "stranske/Workflows" in dashboard

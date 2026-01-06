@@ -63,7 +63,9 @@ REFERENCE_RE = re.compile(
     r"\s*(?:\u2014|-)\s*(?P<desc>.+)"
 )
 
-REFERENCE_CORE_RE = re.compile(r"(?P<path>[A-Za-z0-9_./-]+)#L(?P<start>\d+)-L(?P<end>\d+)")
+REFERENCE_CORE_RE = re.compile(
+    r"(?P<path>[A-Za-z0-9_./-]+)#L(?P<start>\d+)-L(?P<end>\d+)"
+)
 
 HEADING_RE = re.compile(r"^\s*(?P<hashes>#{1,6})\s+(?P<title>.+?)\s*$")
 
@@ -98,7 +100,9 @@ def _extract_category(line: str) -> str | None:
     return _normalize_category(text)
 
 
-def _resolve_reference_path(base_dir: Path, source_dir: Path, ref_path: str) -> Path | None:
+def _resolve_reference_path(
+    base_dir: Path, source_dir: Path, ref_path: str
+) -> Path | None:
     candidate = Path(ref_path)
     if candidate.is_absolute():
         return candidate
@@ -110,7 +114,9 @@ def _resolve_reference_path(base_dir: Path, source_dir: Path, ref_path: str) -> 
     return None
 
 
-def _parse_references(markdown: str, source: str) -> tuple[list[Reference], list[str], bool]:
+def _parse_references(
+    markdown: str, source: str
+) -> tuple[list[Reference], list[str], bool]:
     references: list[Reference] = []
     errors: list[str] = []
     current_category: str | None = None
@@ -153,11 +159,17 @@ def _parse_references(markdown: str, source: str) -> tuple[list[Reference], list
                 description = match.group("desc").strip()
                 ref_category = current_category
                 if not ref_category:
-                    errors.append(f"{source}:{line_number}: reference missing category heading.")
+                    errors.append(
+                        f"{source}:{line_number}: reference missing category heading."
+                    )
                 if end < start:
-                    errors.append(f"{source}:{line_number}: invalid line range L{start}-L{end}.")
+                    errors.append(
+                        f"{source}:{line_number}: invalid line range L{start}-L{end}."
+                    )
                 if not description:
-                    errors.append(f"{source}:{line_number}: reference missing description.")
+                    errors.append(
+                        f"{source}:{line_number}: reference missing description."
+                    )
                 references.append(
                     Reference(
                         path=match.group("path"),
@@ -192,12 +204,16 @@ def _check_reference_files(
     for ref in references:
         resolved = _resolve_reference_path(base_dir, source_dir, ref.path)
         if resolved is None:
-            errors.append(f"{ref.source}:{ref.source_line}: file not found for {ref.path}.")
+            errors.append(
+                f"{ref.source}:{ref.source_line}: file not found for {ref.path}."
+            )
             continue
         try:
             lines = resolved.read_text(encoding="utf-8").splitlines()
         except OSError as exc:
-            errors.append(f"{ref.source}:{ref.source_line}: failed to read {resolved}: {exc}.")
+            errors.append(
+                f"{ref.source}:{ref.source_line}: failed to read {resolved}: {exc}."
+            )
             continue
         if ref.start_line < 1 or ref.end_line > len(lines):
             errors.append(
@@ -217,7 +233,8 @@ def _check_category_minimums(references: list[Reference]) -> list[str]:
         if counts[key] < minimum:
             label = CATEGORY_LABELS.get(key, key)
             errors.append(
-                f"Insufficient {label} references: {counts[key]} found, " f"{minimum}+ required."
+                f"Insufficient {label} references: {counts[key]} found, "
+                f"{minimum}+ required."
             )
     return errors
 
@@ -247,7 +264,9 @@ def validate_trend_references(path: Path, check_files: bool = False) -> list[str
     references, errors, _ = _parse_references(content, str(path))
     errors.extend(_check_category_minimums(references))
     if check_files:
-        errors.extend(_check_reference_files(references, Path.cwd(), path.parent.resolve()))
+        errors.extend(
+            _check_reference_files(references, Path.cwd(), path.parent.resolve())
+        )
     return errors
 
 
@@ -262,7 +281,9 @@ def _collect_markdown_files(paths: list[Path]) -> list[Path]:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Validate Trend memo references in markdown.")
+    parser = argparse.ArgumentParser(
+        description="Validate Trend memo references in markdown."
+    )
     parser.add_argument(
         "paths",
         nargs="*",
@@ -281,7 +302,9 @@ def main(argv: list[str] | None = None) -> int:
     else:
         errors = []
         for markdown_path in _collect_markdown_files([Path(p) for p in args.paths]):
-            errors.extend(validate_trend_references(markdown_path, check_files=args.check_files))
+            errors.extend(
+                validate_trend_references(markdown_path, check_files=args.check_files)
+            )
 
     if errors:
         message = "Trend reference validation failed:\n" + "\n".join(

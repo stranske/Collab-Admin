@@ -7,9 +7,7 @@ import sys
 from pathlib import Path
 
 
-def _run_validator(
-    project_path: Path, dashboard_path: Path
-) -> subprocess.CompletedProcess[str]:
+def _run_validator(project_path: Path, dashboard_path: Path) -> subprocess.CompletedProcess[str]:
     repo_root = Path(__file__).resolve().parents[2]
     script_path = repo_root / "scripts" / "validate_config.py"
     command = [
@@ -135,9 +133,7 @@ def test_validate_config_rejects_invalid_dashboard_types(tmp_path: Path) -> None
     result = _run_validator(project_path, dashboard_path)
 
     assert result.returncode != 0
-    assert "dashboard.show_numeric_scoring must be a boolean" in (
-        result.stderr + result.stdout
-    )
+    assert "dashboard.show_numeric_scoring must be a boolean" in (result.stderr + result.stdout)
 
 
 # Tests for single-file validation mode (--type argument)

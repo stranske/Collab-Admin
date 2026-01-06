@@ -8,12 +8,8 @@ from pathlib import Path
 
 
 def load_module():
-    script_path = (
-        Path(__file__).resolve().parents[2] / "scripts" / "validate_trend_references.py"
-    )
-    spec = importlib.util.spec_from_file_location(
-        "validate_trend_references", script_path
-    )
+    script_path = Path(__file__).resolve().parents[2] / "scripts" / "validate_trend_references.py"
+    spec = importlib.util.spec_from_file_location("validate_trend_references", script_path)
     module = importlib.util.module_from_spec(spec)
     sys.modules[spec.name] = module
     assert spec.loader is not None

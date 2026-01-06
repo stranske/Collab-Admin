@@ -197,9 +197,7 @@ class GitHubModelsProvider(LLMProvider):
             )
             # Short text means limited evidence - cap confidence
             confidence = min(confidence, 0.4)
-            logger.warning(
-                f"Short analysis text: {quality_context.analysis_text_length} chars"
-            )
+            logger.warning(f"Short analysis text: {quality_context.analysis_text_length} chars")
 
         # BS Detection Rule 3: Zero tasks + high effort score = something's wrong
         if (
@@ -220,9 +218,7 @@ class GitHubModelsProvider(LLMProvider):
             any(phrase in reasoning_lower for phrase in no_evidence_phrases)
             and quality_context.has_work_evidence
         ):
-            warnings.append(
-                "LLM claims 'no evidence' but session has file changes/commands"
-            )
+            warnings.append("LLM claims 'no evidence' but session has file changes/commands")
             confidence = min(confidence, 0.35)
 
         # BS Detection Rule 5: Data quality impacts confidence ceiling
@@ -322,9 +318,7 @@ Be conservative - if unsure, don't mark as completed."""
                 confidence=adjusted_confidence,
                 reasoning=reasoning,
                 provider_used=self.name,
-                raw_confidence=(
-                    raw_confidence if adjusted_confidence != raw_confidence else None
-                ),
+                raw_confidence=(raw_confidence if adjusted_confidence != raw_confidence else None),
                 confidence_adjusted=adjusted_confidence != raw_confidence,
                 quality_warnings=warnings if warnings else None,
             )
@@ -469,8 +463,7 @@ class RegexFallbackProvider(LLMProvider):
             is_blocked = any(
                 word in output_lower
                 and any(
-                    p in output_lower
-                    for p in ["blocked", "stuck", "failed", "error", "cannot"]
+                    p in output_lower for p in ["blocked", "stuck", "failed", "error", "cannot"]
                 )
                 for word in task_words
                 if len(word) > 3
@@ -560,8 +553,7 @@ def get_llm_provider(force_provider: str | None = None) -> LLMProvider:
         }
         if force_provider not in provider_map:
             raise ValueError(
-                f"Unknown provider: {force_provider}. "
-                f"Options: {list(provider_map.keys())}"
+                f"Unknown provider: {force_provider}. " f"Options: {list(provider_map.keys())}"
             )
         provider_class = provider_map[force_provider]
         provider = provider_class()

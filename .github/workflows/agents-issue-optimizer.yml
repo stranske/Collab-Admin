@@ -62,12 +62,9 @@ jobs:
             echo "should_run=false" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Checkout Workflows repository
+      - name: Checkout repository
         if: steps.check.outputs.should_run == 'true'
         uses: actions/checkout@v4
-        with:
-          repository: stranske/Workflows
-          ref: main
 
       - name: Set up Python
         if: steps.check.outputs.should_run == 'true'

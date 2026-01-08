@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import csv
 import importlib.util
+from datetime import date, timedelta
 from pathlib import Path
 
 
@@ -28,7 +29,7 @@ def write_csv(path: Path, rows: list[dict[str, str]]) -> None:
 
 def base_row() -> dict[str, str]:
     return {
-        "date": "2024-01-08",
+        "date": (date.today() - timedelta(days=7)).isoformat(),
         "amount": "49.99",
         "currency": "USD",
         "category": "hardware",

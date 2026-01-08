@@ -29,9 +29,11 @@ def write_csv(path: Path, rows: list[dict[str, str]]) -> None:
         writer.writerows(rows)
 
 
-def base_row() -> dict[str, str]:
+def base_row(row_date: str | None = None) -> dict[str, str]:
+    if row_date is None:
+        row_date = (date.today() - timedelta(days=7)).isoformat()
     return {
-        "date": "2024-01-08",
+        "date": row_date,
         "hours": "2.5",
         "repo": "Collab-Admin",
         "issue_or_pr": "PR-123",
@@ -43,7 +45,7 @@ def base_row() -> dict[str, str]:
 
 def test_valid_log_passes(tmp_path: Path) -> None:
     path = tmp_path / "log.csv"
-    write_csv(path, [base_row()])
+    write_csv(path, [base_row("2024-01-08")])
 
     errors = validate_time_log.validate_time_log(path, today=date(2024, 1, 10))
 
@@ -52,7 +54,7 @@ def test_valid_log_passes(tmp_path: Path) -> None:
 
 def test_invalid_category_fails(tmp_path: Path) -> None:
     path = tmp_path / "log.csv"
-    row = base_row()
+    row = base_row("2024-01-08")
     row["category"] = "ops"
     write_csv(path, [row])
 
@@ -63,7 +65,7 @@ def test_invalid_category_fails(tmp_path: Path) -> None:
 
 def test_invalid_artifact_link_fails(tmp_path: Path) -> None:
     path = tmp_path / "log.csv"
-    row = base_row()
+    row = base_row("2024-01-08")
     row["artifact_link"] = "https://example.com/not-github"
     write_csv(path, [row])
 
@@ -74,7 +76,7 @@ def test_invalid_artifact_link_fails(tmp_path: Path) -> None:
 
 def test_invalid_date_format_fails(tmp_path: Path) -> None:
     path = tmp_path / "log.csv"
-    row = base_row()
+    row = base_row("2024-01-08")
     row["date"] = "2024/01/08"
     write_csv(path, [row])
 
@@ -86,9 +88,9 @@ def test_invalid_date_format_fails(tmp_path: Path) -> None:
 def test_date_range_checks(tmp_path: Path) -> None:
     path = tmp_path / "log.csv"
     today = date(2024, 1, 10)
-    row_future = base_row()
+    row_future = base_row("2024-01-08")
     row_future["date"] = "2024-01-12"
-    row_old = base_row()
+    row_old = base_row("2024-01-08")
     too_old = today - timedelta(days=validate_time_log.MAX_PAST_DAYS + 1)
     row_old["date"] = too_old.strftime(validate_time_log.DATE_FORMAT)
     write_csv(path, [row_future, row_old])

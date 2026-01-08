@@ -5,6 +5,7 @@ from __future__ import annotations
 import csv
 import importlib.util
 import sys
+from datetime import date, timedelta
 from pathlib import Path
 
 
@@ -63,7 +64,7 @@ def test_generate_month_end_with_data(tmp_path: Path) -> None:
         tmp_path / "logs" / "time" / "2024-01.csv",
         [
             {
-                "date": "2024-01-08",
+                "date": (date.today() - timedelta(days=7)).isoformat(),
                 "hours": "2.5",
                 "repo": "Collab-Admin",
                 "issue_or_pr": "PR-123",

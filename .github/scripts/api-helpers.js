@@ -13,6 +13,22 @@ const DEFAULT_MAX_RETRIES = 3;
 const DEFAULT_BASE_DELAY_MS = 1000;
 const DEFAULT_MAX_DELAY_MS = 30000;
 const RATE_LIMIT_THRESHOLD = 500;
+const PAT_ENV_KEYS = [
+  'AGENTS_AUTOMATION_PAT',
+  'ACTIONS_BOT_PAT',
+  'SERVICE_BOT_PAT',
+  'OWNER_PR_PAT',
+];
+
+function resolvePatToken(env = process.env) {
+  for (const key of PAT_ENV_KEYS) {
+    const value = env?.[key];
+    if (typeof value === 'string' && value.trim()) {
+      return value.trim();
+    }
+  }
+  return '';
+}
 
 /**
  * Check if an error is a rate limit error (HTTP 403 with rate limit message)
@@ -270,6 +286,44 @@ async function checkRateLimitStatus(github, options = {}) {
 }
 
 /**
+ * Switch to a PAT-backed Octokit client if the current rate limit is low.
+ *
+ * @param {Object} github - Octokit instance
+ * @param {Object} options - Configuration options
+ * @param {Object} [options.env=process.env] - Environment variables (for PAT lookup)
+ * @param {number} [options.threshold=500] - Minimum remaining requests required
+ * @param {Object} [options.core=null] - GitHub Actions core object for logging
+ * @returns {Promise<Object>} Selected client info
+ */
+async function selectGithubClientForRateLimit(github, options = {}) {
+  const { env = process.env, threshold = RATE_LIMIT_THRESHOLD, core = null } = options;
+  if (!github) {
+    return { github, usedFallback: false, reason: 'missing-client' };
+  }
+
+  const status = await checkRateLimitStatus(github, { threshold, core });
+  if (status.safe) {
+    return { github, usedFallback: false, reason: 'rate-limit-ok', status };
+  }
+
+  const token = resolvePatToken(env);
+  if (!token) {
+    log(core, 'warning', 'Rate limit low but no PAT available for fallback.');
+    return { github, usedFallback: false, reason: 'no-pat', status };
+  }
+
+  const Octokit = github?.constructor;
+  if (!Octokit) {
+    log(core, 'warning', 'Rate limit low but cannot construct fallback Octokit client.');
+    return { github, usedFallback: false, reason: 'no-octokit', status };
+  }
+
+  const fallback = new Octokit({ auth: token });
+  log(core, 'warning', 'Rate limit low; switching to PAT-backed client for this step.');
+  return { github: fallback, usedFallback: true, reason: 'pat-fallback', status };
+}
+
+/**
  * Create a rate-limit-aware wrapper around an Octokit instance
  * This creates proxy methods that automatically apply backoff
  *
@@ -322,6 +376,7 @@ module.exports = {
   paginateWithBackoff,
   withBackoff,
   checkRateLimitStatus,
+  selectGithubClientForRateLimit,
   createRateLimitAwareClient,
 
   // Constants

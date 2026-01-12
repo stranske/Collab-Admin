@@ -10,6 +10,7 @@ const { classifyError, ERROR_CATEGORIES } = require('./error_classifier');
 const { formatFailureComment } = require('./failure_comment_formatter');
 const { detectConflicts } = require('./conflict_detector');
 const { parseTimeoutConfig } = require('./timeout_config');
+const { selectGithubClientForRateLimit } = require('./api-helpers');
 
 const ATTEMPT_HISTORY_LIMIT = 5;
 const ATTEMPTED_TASK_LIMIT = 6;
@@ -1262,6 +1263,8 @@ async function detectRateLimitCancellation({ github, context, runId, core }) {
 }
 
 async function evaluateKeepaliveLoop({ github, context, core, payload: overridePayload, overridePrNumber, forceRetry }) {
+  const rateLimitSelection = await selectGithubClientForRateLimit(github, { env: process.env, core });
+  github = rateLimitSelection.github;
   const payload = overridePayload || context.payload || {};
   let prNumber = overridePrNumber || await resolvePrNumber({ github, context, core, payload });
   if (!prNumber) {
@@ -1500,6 +1503,8 @@ async function evaluateKeepaliveLoop({ github, context, core, payload: overrideP
 }
 
 async function updateKeepaliveLoopSummary({ github, context, core, inputs }) {
+  const rateLimitSelection = await selectGithubClientForRateLimit(github, { env: process.env, core });
+  github = rateLimitSelection.github;
   const prNumber = Number(inputs.prNumber || inputs.pr_number || 0);
   if (!Number.isFinite(prNumber) || prNumber <= 0) {
     if (core) core.info('No PR number available for summary update.');
@@ -2177,6 +2182,8 @@ async function updateKeepaliveLoopSummary({ github, context, core, inputs }) {
  * This provides real-time visibility into the keepalive loop's activity.
  */
 async function markAgentRunning({ github, context, core, inputs }) {
+  const rateLimitSelection = await selectGithubClientForRateLimit(github, { env: process.env, core });
+  github = rateLimitSelection.github;
   const prNumber = Number(inputs.prNumber || inputs.pr_number || 0);
   if (!Number.isFinite(prNumber) || prNumber <= 0) {
     if (core) core.info('No PR number available for running status update.');
@@ -2521,6 +2528,8 @@ async function analyzeTaskCompletion({ github, context, prNumber, baseSha, headS
  * @returns {Promise<{updated: boolean, tasksChecked: number, details: string}>}
  */
 async function autoReconcileTasks({ github, context, prNumber, baseSha, headSha, llmCompletedTasks, core }) {
+  const rateLimitSelection = await selectGithubClientForRateLimit(github, { env: process.env, core });
+  github = rateLimitSelection.github;
   const log = (msg) => core?.info?.(msg) || console.log(msg);
   const sources = { llm: 0, commit: 0 };
 

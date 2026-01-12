@@ -94,6 +94,7 @@ def _load_prompt() -> str:
 def _get_llm_client() -> tuple[object, str] | None:
     try:
         from langchain_openai import ChatOpenAI
+
         from tools.llm_provider import DEFAULT_MODEL, GITHUB_MODELS_BASE_URL
     except ImportError:
         return None
@@ -348,7 +349,10 @@ def _apply_task_decomposition(formatted: str, *, use_llm: bool) -> str:
     if not tasks:
         return formatted
 
-    from scripts.langchain import task_decomposer
+    try:
+        import task_decomposer
+    except ModuleNotFoundError:
+        from . import task_decomposer
 
     suggestions: list[dict[str, Any]] = []
     for task in tasks:
@@ -359,7 +363,10 @@ def _apply_task_decomposition(formatted: str, *, use_llm: bool) -> str:
     if not suggestions:
         return formatted
 
-    from scripts.langchain import issue_optimizer
+    try:
+        import issue_optimizer
+    except ModuleNotFoundError:
+        from . import issue_optimizer
 
     return issue_optimizer._apply_task_decomposition(formatted, {"task_splitting": suggestions})
 

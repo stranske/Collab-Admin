@@ -3,7 +3,7 @@
 const assert = require('node:assert/strict');
 const { test } = require('node:test');
 
-const { selectGithubClientForRateLimit } = require('../../.github/scripts/api-helpers');
+const { selectGithubClientForRateLimit, resolveGithubAppCredentials } = require('../../.github/scripts/api-helpers');
 
 class FakeOctokit {
   constructor(options = {}) {
@@ -106,4 +106,51 @@ test('selectGithubClientForRateLimit avoids fallback without constructor', async
   assert.equal(result.github, github);
   assert.equal(result.usedFallback, false);
   assert.equal(result.reason, 'no-octokit');
+});
+
+test('resolveGithubAppCredentials prefers keepalive app credentials', () => {
+  const result = resolveGithubAppCredentials({
+    KEEPALIVE_APP_ID: '123',
+    KEEPALIVE_APP_PRIVATE_KEY: 'keepalive-key',
+    GH_APP_ID: '234',
+    GH_APP_PRIVATE_KEY: 'gh-key',
+  });
+
+  assert.equal(result.hasCredentials, true);
+  assert.equal(result.source, 'keepalive');
+  assert.equal(result.appId, '123');
+});
+
+test('resolveGithubAppCredentials falls back to gh app when keepalive is incomplete', () => {
+  const result = resolveGithubAppCredentials({
+    KEEPALIVE_APP_ID: '123',
+    GH_APP_ID: '234',
+    GH_APP_PRIVATE_KEY: 'gh-key',
+  });
+
+  assert.equal(result.hasCredentials, true);
+  assert.equal(result.source, 'gh_app');
+  assert.equal(result.appId, '234');
+});
+
+test('resolveGithubAppCredentials uses workflows app when others are missing', () => {
+  const result = resolveGithubAppCredentials({
+    WORKFLOWS_APP_ID: '999',
+    WORKFLOWS_APP_PRIVATE_KEY: 'workflow-key',
+  });
+
+  assert.equal(result.hasCredentials, true);
+  assert.equal(result.source, 'workflows');
+  assert.equal(result.appId, '999');
+});
+
+test('resolveGithubAppCredentials reports partial configuration', () => {
+  const result = resolveGithubAppCredentials({
+    GH_APP_ID: '234',
+  });
+
+  assert.equal(result.hasCredentials, false);
+  assert.equal(result.source, 'gh_app');
+  assert.equal(result.hasId, true);
+  assert.equal(result.hasKey, false);
 });

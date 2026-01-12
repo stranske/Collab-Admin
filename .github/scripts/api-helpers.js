@@ -19,6 +19,23 @@ const PAT_ENV_KEYS = [
   'SERVICE_BOT_PAT',
   'OWNER_PR_PAT',
 ];
+const APP_ENV_SOURCES = [
+  {
+    source: 'keepalive',
+    idKey: 'KEEPALIVE_APP_ID',
+    privateKeyKey: 'KEEPALIVE_APP_PRIVATE_KEY',
+  },
+  {
+    source: 'gh_app',
+    idKey: 'GH_APP_ID',
+    privateKeyKey: 'GH_APP_PRIVATE_KEY',
+  },
+  {
+    source: 'workflows',
+    idKey: 'WORKFLOWS_APP_ID',
+    privateKeyKey: 'WORKFLOWS_APP_PRIVATE_KEY',
+  },
+];
 
 function resolvePatToken(env = process.env) {
   for (const key of PAT_ENV_KEYS) {
@@ -28,6 +45,55 @@ function resolvePatToken(env = process.env) {
     }
   }
   return '';
+}
+
+function resolveGithubAppCredentials(env = process.env) {
+  const candidates = APP_ENV_SOURCES.map(({ source, idKey, privateKeyKey }) => {
+    const rawId = env?.[idKey];
+    const rawKey = env?.[privateKeyKey];
+    const appId = typeof rawId === 'string' ? rawId.trim() : '';
+    const privateKey = typeof rawKey === 'string' ? rawKey.trim() : '';
+    return {
+      source,
+      appId,
+      privateKey,
+      hasId: Boolean(appId),
+      hasKey: Boolean(privateKey),
+    };
+  });
+
+  const complete = candidates.find((candidate) => candidate.hasId && candidate.hasKey);
+  if (complete) {
+    return {
+      source: complete.source,
+      appId: complete.appId,
+      privateKey: complete.privateKey,
+      hasCredentials: true,
+      hasId: true,
+      hasKey: true,
+    };
+  }
+
+  const partial = candidates.find((candidate) => candidate.hasId || candidate.hasKey);
+  if (partial) {
+    return {
+      source: partial.source,
+      appId: partial.appId,
+      privateKey: partial.privateKey,
+      hasCredentials: false,
+      hasId: partial.hasId,
+      hasKey: partial.hasKey,
+    };
+  }
+
+  return {
+    source: '',
+    appId: '',
+    privateKey: '',
+    hasCredentials: false,
+    hasId: false,
+    hasKey: false,
+  };
 }
 
 /**
@@ -371,6 +437,7 @@ module.exports = {
   sleep,
   extractRateLimitReset,
   calculateWaitUntilReset,
+  resolveGithubAppCredentials,
 
   // Main utilities
   paginateWithBackoff,

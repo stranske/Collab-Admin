@@ -2,7 +2,7 @@
 
 const { setTimeout: sleep } = require('timers/promises');
 const { createKeepaliveStateManager } = require('./keepalive_state.js');
-const { selectGithubClientForRateLimit } = require('./api-helpers');
+const { selectGithubClientForRateLimit, resolveGithubAppCredentials } = require('./api-helpers');
 
 const AGENT_LABEL_PREFIX = 'agent:';
 const MERGE_METHODS = new Set(['merge', 'squash', 'rebase']);
@@ -795,6 +795,28 @@ async function runKeepalivePostWork({ core, github, context, env = process.env }
     record('Rate limit', 'Low app quota; using PAT fallback.');
   } else if (rateLimitSelection.reason === 'rate-limit-ok') {
     record('Rate limit', 'App quota healthy.');
+  }
+
+  const appCredentials = resolveGithubAppCredentials(env);
+  if (appCredentials.source) {
+    if (appCredentials.hasCredentials) {
+      const appSourceLabel =
+        appCredentials.source === 'keepalive'
+          ? 'KEEPALIVE_APP'
+          : appCredentials.source === 'gh_app'
+            ? 'GH_APP'
+            : 'WORKFLOWS_APP';
+      const suffix = appCredentials.source === 'workflows' ? ' (deprecated)' : '';
+      record('Auth app', `${appSourceLabel}${suffix}`);
+    } else {
+      const appSourceLabel =
+        appCredentials.source === 'keepalive'
+          ? 'KEEPALIVE_APP'
+          : appCredentials.source === 'gh_app'
+            ? 'GH_APP'
+            : 'WORKFLOWS_APP';
+      record('Auth app', `Incomplete ${appSourceLabel} credentials`);
+    }
   }
 
   const noteRemediation = (note) => {

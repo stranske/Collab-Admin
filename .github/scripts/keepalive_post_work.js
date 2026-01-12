@@ -2,6 +2,7 @@
 
 const { setTimeout: sleep } = require('timers/promises');
 const { createKeepaliveStateManager } = require('./keepalive_state.js');
+const { selectGithubClientForRateLimit } = require('./api-helpers');
 
 const AGENT_LABEL_PREFIX = 'agent:';
 const MERGE_METHODS = new Set(['merge', 'squash', 'rebase']);
@@ -787,6 +788,14 @@ async function runKeepalivePostWork({ core, github, context, env = process.env }
   const summaryHelper = buildSummaryRecorder(core?.summary);
   const record = summaryHelper.record;
   const remediationNotes = [];
+
+  const rateLimitSelection = await selectGithubClientForRateLimit(github, { env, core });
+  github = rateLimitSelection.github;
+  if (rateLimitSelection.usedFallback) {
+    record('Rate limit', 'Low app quota; using PAT fallback.');
+  } else if (rateLimitSelection.reason === 'rate-limit-ok') {
+    record('Rate limit', 'App quota healthy.');
+  }
 
   const noteRemediation = (note) => {
     const value = normalise(note);

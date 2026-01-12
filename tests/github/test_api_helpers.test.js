@@ -71,3 +71,39 @@ test('selectGithubClientForRateLimit handles missing client', async () => {
   assert.equal(result.usedFallback, false);
   assert.equal(result.reason, 'missing-client');
 });
+
+test('selectGithubClientForRateLimit respects PAT env precedence', async () => {
+  const github = buildGithubClient({ remaining: 12 });
+  const result = await selectGithubClientForRateLimit(github, {
+    env: {
+      ACTIONS_BOT_PAT: 'preferred-token',
+      SERVICE_BOT_PAT: 'fallback-token',
+    },
+  });
+
+  assert.equal(result.usedFallback, true);
+  assert.equal(result.reason, 'pat-fallback');
+  assert.equal(result.github.auth, 'preferred-token');
+});
+
+test('selectGithubClientForRateLimit avoids fallback without constructor', async () => {
+  const github = Object.create(null);
+  github.rest = {
+    rateLimit: {
+      get: async () => ({
+        data: {
+          resources: {
+            core: { remaining: 12, limit: 5000, reset: Math.floor(Date.now() / 1000) + 3600 },
+          },
+        },
+      }),
+    },
+  };
+  const result = await selectGithubClientForRateLimit(github, {
+    env: { SERVICE_BOT_PAT: 'pat-token' },
+  });
+
+  assert.equal(result.github, github);
+  assert.equal(result.usedFallback, false);
+  assert.equal(result.reason, 'no-octokit');
+});

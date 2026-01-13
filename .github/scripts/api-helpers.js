@@ -30,11 +30,6 @@ const APP_ENV_SOURCES = [
     idKey: 'GH_APP_ID',
     privateKeyKey: 'GH_APP_PRIVATE_KEY',
   },
-  {
-    source: 'workflows',
-    idKey: 'WORKFLOWS_APP_ID',
-    privateKeyKey: 'WORKFLOWS_APP_PRIVATE_KEY',
-  },
 ];
 
 function resolvePatToken(env = process.env) {

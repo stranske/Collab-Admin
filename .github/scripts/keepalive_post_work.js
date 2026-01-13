@@ -7,6 +7,15 @@ const { selectGithubClientForRateLimit, resolveGithubAppCredentials } = require(
 const AGENT_LABEL_PREFIX = 'agent:';
 const MERGE_METHODS = new Set(['merge', 'squash', 'rebase']);
 
+function describeAppSource(source) {
+  if (source === 'keepalive') {
+    return 'KEEPALIVE_APP';
+  }
+  if (source === 'gh_app') {
+    return 'GH_APP';
+  }
+  return '';
+}
 
 function normalise(value) {
   return String(value ?? '').trim();
@@ -799,23 +808,13 @@ async function runKeepalivePostWork({ core, github, context, env = process.env }
 
   const appCredentials = resolveGithubAppCredentials(env);
   if (appCredentials.source) {
-    if (appCredentials.hasCredentials) {
-      const appSourceLabel =
-        appCredentials.source === 'keepalive'
-          ? 'KEEPALIVE_APP'
-          : appCredentials.source === 'gh_app'
-            ? 'GH_APP'
-            : 'WORKFLOWS_APP';
-      const suffix = appCredentials.source === 'workflows' ? ' (deprecated)' : '';
-      record('Auth app', `${appSourceLabel}${suffix}`);
-    } else {
-      const appSourceLabel =
-        appCredentials.source === 'keepalive'
-          ? 'KEEPALIVE_APP'
-          : appCredentials.source === 'gh_app'
-            ? 'GH_APP'
-            : 'WORKFLOWS_APP';
-      record('Auth app', `Incomplete ${appSourceLabel} credentials`);
+    const appSourceLabel = describeAppSource(appCredentials.source);
+    if (appSourceLabel) {
+      if (appCredentials.hasCredentials) {
+        record('Auth app', appSourceLabel);
+      } else {
+        record('Auth app', `Incomplete ${appSourceLabel} credentials`);
+      }
     }
   }
 

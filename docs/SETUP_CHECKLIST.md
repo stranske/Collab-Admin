@@ -2,7 +2,7 @@
 
 ### Step 6a: Install GitHub App on Repository
 
-> **Critical**: Even if you've configured `WORKFLOWS_APP_ID` and `WORKFLOWS_APP_PRIVATE_KEY` 
+> **Critical**: Even if you've configured `KEEPALIVE_APP_ID` and `KEEPALIVE_APP_PRIVATE_KEY` 
 > secrets, the GitHub App must be explicitly granted access to this repository.
 
 **Symptom if skipped:** Keepalive fails with `Failed to create token for "<repo-name>": Not Found`
@@ -12,7 +12,7 @@
 1. Go to: **Settings** → **Applications** → **Installed GitHub Apps**
    - Direct link: https://github.com/settings/installations
    
-2. Find your GitHub App in the list (the one matching `WORKFLOWS_APP_ID`)
+2. Find your GitHub App in the list (the one matching `KEEPALIVE_APP_ID`)
 
 3. Click **"Configure"** button on the right side of that row
 
@@ -123,8 +123,10 @@ Navigate to **Settings** → **Secrets and variables** → **Actions** → **Sec
 | `ACTIONS_BOT_PAT` | Alternative bot PAT (if using separate bot) | Same scopes as SERVICE_BOT_PAT |
 | `OWNER_PR_PAT` | Owner PAT for PR operations | Create from your account with `repo` scope |
 | `CODEX_AUTH_JSON` | Codex CLI authentication | Export from `~/.codex/auth.json` |
-| `WORKFLOWS_APP_ID` | **GitHub App ID (Required for keepalive)** | Contact admin for App ID |
-| `WORKFLOWS_APP_PRIVATE_KEY` | **GitHub App private key (Required for keepalive)** | Contact admin for private key |
+| `KEEPALIVE_APP_ID` | **GitHub App ID (Required for keepalive)** | Contact admin for App ID |
+| `KEEPALIVE_APP_PRIVATE_KEY` | **GitHub App private key (Required for keepalive)** | Contact admin for private key |
+| `GH_APP_ID` | GitHub App ID (shared fallback) | Contact admin for App ID |
+| `GH_APP_PRIVATE_KEY` | GitHub App private key (shared fallback) | Contact admin for private key |
 
 #### Creating SERVICE_BOT_PAT (Critical):
 

@@ -18,7 +18,8 @@ If you enable the keepalive/autofix/agent system in `collab-admin`, the shared a
 - `ACTIONS_BOT_PAT` – workflow dispatch + cross-repo triggers.
 - `OWNER_PR_PAT` – creates PRs / branch operations when elevated permissions are needed.
 - `CODEX_AUTH_JSON` – Codex CLI auth blob for workflows that run Codex.
-- Optional preferred auth: `WORKFLOWS_APP_ID` + `WORKFLOWS_APP_PRIVATE_KEY` (GitHub App token minting).
+- Preferred auth: `KEEPALIVE_APP_ID` + `KEEPALIVE_APP_PRIVATE_KEY` (keepalive App token minting).
+- Fallback auth: `GH_APP_ID` + `GH_APP_PRIVATE_KEY` (shared GitHub App token minting).
 
 ### Variables
 

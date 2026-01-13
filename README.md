@@ -135,8 +135,10 @@ mypy src/ tests/ scripts/
 | Secret | Purpose |
 |--------|---------|
 | `CODEX_AUTH_JSON` | Codex CLI authentication |
-| `WORKFLOWS_APP_ID` | GitHub App ID for token minting |
-| `WORKFLOWS_APP_PRIVATE_KEY` | GitHub App private key |
+| `KEEPALIVE_APP_ID` | GitHub App ID for keepalive token minting |
+| `KEEPALIVE_APP_PRIVATE_KEY` | GitHub App private key for keepalive |
+| `GH_APP_ID` | GitHub App ID for shared automation fallback |
+| `GH_APP_PRIVATE_KEY` | GitHub App private key for shared automation |
 | `SERVICE_BOT_PAT` | Bot PAT for automation |
 | `OWNER_PR_PAT` | Owner PAT for PR operations |
 

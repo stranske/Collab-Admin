@@ -133,17 +133,6 @@ test('resolveGithubAppCredentials falls back to gh app when keepalive is incompl
   assert.equal(result.appId, '234');
 });
 
-test('resolveGithubAppCredentials uses workflows app when others are missing', () => {
-  const result = resolveGithubAppCredentials({
-    WORKFLOWS_APP_ID: '999',
-    WORKFLOWS_APP_PRIVATE_KEY: 'workflow-key',
-  });
-
-  assert.equal(result.hasCredentials, true);
-  assert.equal(result.source, 'workflows');
-  assert.equal(result.appId, '999');
-});
-
 test('resolveGithubAppCredentials reports partial configuration', () => {
   const result = resolveGithubAppCredentials({
     GH_APP_ID: '234',
@@ -153,4 +142,12 @@ test('resolveGithubAppCredentials reports partial configuration', () => {
   assert.equal(result.source, 'gh_app');
   assert.equal(result.hasId, true);
   assert.equal(result.hasKey, false);
+});
+
+test('resolveGithubAppCredentials returns empty when no app credentials exist', () => {
+  const result = resolveGithubAppCredentials({});
+
+  assert.equal(result.hasCredentials, false);
+  assert.equal(result.source, '');
+  assert.equal(result.appId, '');
 });

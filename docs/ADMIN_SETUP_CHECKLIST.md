@@ -117,7 +117,8 @@ See [docs/13-project-instrumentation-roadmap.md](13-project-instrumentation-road
 
 ### Secrets ✅
 - [x] `CODEX_AUTH_JSON`
-- [x] `WORKFLOWS_APP_ID`, `WORKFLOWS_APP_PRIVATE_KEY`
+- [x] `KEEPALIVE_APP_ID`, `KEEPALIVE_APP_PRIVATE_KEY`
+- [x] `GH_APP_ID`, `GH_APP_PRIVATE_KEY`
 - [x] `SERVICE_BOT_PAT`, `ACTIONS_BOT_PAT`, `OWNER_PR_PAT`
 
 ### Variables ✅

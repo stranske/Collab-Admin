@@ -429,7 +429,7 @@ jobs:
           AUTOPILOT_STEP_NAME: format
           AUTOPILOT_ERROR_CATEGORY: timer-start
         run: |
-          echo "Metrics disabled: scripts/autopilot_step_timer.py not present. Skipping start timer."
+          python scripts/autopilot_step_timer.py --event start --format epoch-ms --github-env
 
       - name: Execute step - Format (inline)
         if: steps.next.outputs.next_step == 'format'

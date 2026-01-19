@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Create GitHub issues for required follow-up items in review records."""
+
 from __future__ import annotations
 
 import argparse

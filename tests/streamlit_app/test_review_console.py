@@ -36,16 +36,14 @@ def test_load_rubric_options_missing_dir(tmp_path: Path) -> None:
 def test_load_rubric_dimensions(tmp_path: Path) -> None:
     """Load dimensions from rubric file."""
     rubric = tmp_path / "test.yml"
-    rubric.write_text(
-        """
+    rubric.write_text("""
 rubric_id: test
 dimensions:
   - id: dim1
     name: First Dimension
   - id: dim2
     name: Second Dimension
-"""
-    )
+""")
 
     dimensions = load_rubric_dimensions(rubric)
 
@@ -66,12 +64,10 @@ def test_load_rubric_dimensions_missing_file(tmp_path: Path) -> None:
 def test_load_rubric_levels(tmp_path: Path) -> None:
     """Load levels from rubric file."""
     rubric = tmp_path / "test.yml"
-    rubric.write_text(
-        """
+    rubric.write_text("""
 rubric_id: test
 levels: [Bad, OK, Good, Great]
-"""
-    )
+""")
 
     levels = load_rubric_levels(rubric)
 

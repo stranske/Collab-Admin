@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 """Build a static markdown dashboard from local review, time log, and CI data."""
+
 from __future__ import annotations
 
 import argparse

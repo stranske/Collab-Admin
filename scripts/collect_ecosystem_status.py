@@ -7,6 +7,7 @@ This script gathers information about:
 - Agent automation status (keepalive enabled PRs)
 - Sync manifest compliance
 """
+
 from __future__ import annotations
 
 import argparse

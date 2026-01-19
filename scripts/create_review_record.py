@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 """Create a review record stub from the review template."""
+
 from __future__ import annotations
 
 import argparse

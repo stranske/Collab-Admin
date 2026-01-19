@@ -18,8 +18,7 @@ class TestParseWorkflowReferences:
     def test_extracts_reusable_workflow_reference(self, tmp_path: Path) -> None:
         """Test parsing a workflow file with reusable workflow references."""
         workflow = tmp_path / "test.yml"
-        workflow.write_text(
-            """
+        workflow.write_text("""
 name: Test
 on: push
 jobs:
@@ -27,8 +26,7 @@ jobs:
     uses: stranske/Workflows/.github/workflows/reusable-10-ci-python.yml@main
   docker:
     uses: stranske/Workflows/.github/workflows/reusable-12-ci-docker.yml@v2.0.0
-"""
-        )
+""")
         refs = _parse_workflow_references(workflow)
         assert len(refs) == 2
         assert refs[0].referenced_repo == "stranske/Workflows"
@@ -40,8 +38,7 @@ jobs:
     def test_no_reusable_workflows(self, tmp_path: Path) -> None:
         """Test parsing a workflow without reusable references."""
         workflow = tmp_path / "test.yml"
-        workflow.write_text(
-            """
+        workflow.write_text("""
 name: Test
 on: push
 jobs:
@@ -49,8 +46,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-"""
-        )
+""")
         refs = _parse_workflow_references(workflow)
         assert len(refs) == 0
 
@@ -76,24 +72,20 @@ class TestCollectWorkflowReferences:
         workflows_dir = tmp_path / ".github" / "workflows"
         workflows_dir.mkdir(parents=True)
 
-        (workflows_dir / "ci.yml").write_text(
-            """
+        (workflows_dir / "ci.yml").write_text("""
 name: CI
 on: push
 jobs:
   test:
     uses: stranske/Workflows/.github/workflows/reusable-10-ci-python.yml@main
-"""
-        )
-        (workflows_dir / "gate.yml").write_text(
-            """
+""")
+        (workflows_dir / "gate.yml").write_text("""
 name: Gate
 on: pull_request
 jobs:
   gate:
     uses: stranske/Workflows/.github/workflows/reusable-gate.yml@main
-"""
-        )
+""")
 
         refs = _collect_workflow_references(workflows_dir)
         assert len(refs) == 2
@@ -121,15 +113,13 @@ class TestCollectEcosystemStatus:
 
         workflows_dir = tmp_path / ".github" / "workflows"
         workflows_dir.mkdir(parents=True)
-        (workflows_dir / "test.yml").write_text(
-            """
+        (workflows_dir / "test.yml").write_text("""
 name: Test
 on: push
 jobs:
   test:
     uses: stranske/Workflows/.github/workflows/reusable-ci.yml@main
-"""
-        )
+""")
 
         status = collect_ecosystem_status(workflows_dir=workflows_dir)
 

@@ -201,7 +201,9 @@ def build_chat_client(
     try:
         from langchain_anthropic import ChatAnthropic
     except ImportError:
-        ChatAnthropic = None
+        chat_anthropic_cls = None
+    else:
+        chat_anthropic_cls = ChatAnthropic
 
     github_token = os.environ.get("GITHUB_TOKEN")
     openai_token = os.environ.get("OPENAI_API_KEY")
@@ -248,11 +250,11 @@ def build_chat_client(
             return None
 
     if selected_provider == PROVIDER_ANTHROPIC:
-        if not anthropic_token or not ChatAnthropic:
+        if not anthropic_token or not chat_anthropic_cls:
             return None
         try:
             client = _build_anthropic_client(
-                ChatAnthropic,
+                chat_anthropic_cls,
                 model=selected_model,
                 token=anthropic_token,
                 timeout=selected_timeout,
@@ -279,10 +281,10 @@ def build_chat_client(
                 )
                 used_override = True
                 return ClientInfo(client=client, provider=PROVIDER_OPENAI, model=slot_model)
-        if slot.provider == PROVIDER_ANTHROPIC and anthropic_token and ChatAnthropic:
+        if slot.provider == PROVIDER_ANTHROPIC and anthropic_token and chat_anthropic_cls:
             with contextlib.suppress(Exception):
                 client = _build_anthropic_client(
-                    ChatAnthropic,
+                    chat_anthropic_cls,
                     model=slot_model,
                     token=anthropic_token,
                     timeout=selected_timeout,
@@ -321,7 +323,9 @@ def build_chat_clients(
     try:
         from langchain_anthropic import ChatAnthropic
     except ImportError:
-        ChatAnthropic = None
+        chat_anthropic_cls = None
+    else:
+        chat_anthropic_cls = ChatAnthropic
 
     github_token = os.environ.get("GITHUB_TOKEN")
     openai_token = os.environ.get("OPENAI_API_KEY")
@@ -402,12 +406,12 @@ def build_chat_clients(
                             model=second_model,
                         )
                     )
-        elif selected_provider == PROVIDER_ANTHROPIC and anthropic_token and ChatAnthropic:
+        elif selected_provider == PROVIDER_ANTHROPIC and anthropic_token and chat_anthropic_cls:
             with contextlib.suppress(Exception):
                 clients.append(
                     ClientInfo(
                         client=_build_anthropic_client(
-                            ChatAnthropic,
+                            chat_anthropic_cls,
                             model=first_model,
                             token=anthropic_token,
                             timeout=selected_timeout,
@@ -422,7 +426,7 @@ def build_chat_clients(
                     clients.append(
                         ClientInfo(
                             client=_build_anthropic_client(
-                                ChatAnthropic,
+                                chat_anthropic_cls,
                                 model=second_model,
                                 token=anthropic_token,
                                 timeout=selected_timeout,
@@ -441,7 +445,7 @@ def build_chat_clients(
         if any(
             (
                 slot.provider == PROVIDER_OPENAI and openai_token,
-                slot.provider == PROVIDER_ANTHROPIC and anthropic_token and ChatAnthropic,
+                slot.provider == PROVIDER_ANTHROPIC and anthropic_token and chat_anthropic_cls,
                 slot.provider == PROVIDER_GITHUB and github_token,
             )
         ):
@@ -470,12 +474,12 @@ def build_chat_clients(
                         model=slot_model,
                     )
                 )
-        if slot.provider == PROVIDER_ANTHROPIC and anthropic_token and ChatAnthropic:
+        if slot.provider == PROVIDER_ANTHROPIC and anthropic_token and chat_anthropic_cls:
             with contextlib.suppress(Exception):
                 clients.append(
                     ClientInfo(
                         client=_build_anthropic_client(
-                            ChatAnthropic,
+                            chat_anthropic_cls,
                             model=slot_model,
                             token=anthropic_token,
                             timeout=selected_timeout,

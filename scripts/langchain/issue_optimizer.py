@@ -10,12 +10,18 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import re
 import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
+
+from pydantic import BaseModel, ConfigDict, Field
+from scripts.langchain.structured_output import (
+    DEFAULT_REPAIR_PROMPT,
+    build_repair_callback,
+    parse_structured_output,
+)
 
 AGENT_LIMITATIONS = [
     "Cannot modify .github/workflows/*.yml (protected)",
@@ -69,6 +75,8 @@ following AGENT_ISSUE_TEMPLATE structure. Move blocked tasks to
 a "## Deferred Tasks (Requires Human)" section.
 """.strip()
 
+ISSUE_OPTIMIZER_REPAIR_PROMPT = DEFAULT_REPAIR_PROMPT
+
 SECTION_ALIASES = {
     "why": ["why", "motivation", "summary"],
     "scope": ["scope", "context", "background"],
@@ -114,6 +122,16 @@ class IssueOptimizationResult:
             "overall_notes": self.overall_notes or "",
             "provider_used": self.provider_used,
         }
+
+
+class IssueOptimizationPayload(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    task_splitting: list[dict[str, Any]] = Field(default_factory=list)
+    blocked_tasks: list[dict[str, Any]] = Field(default_factory=list)
+    objective_criteria: list[dict[str, Any]] = Field(default_factory=list)
+    missing_sections: list[str] = Field(default_factory=list)
+    formatting_issues: list[str] = Field(default_factory=list)
+    overall_notes: str | None = None
 
 
 def _format_list_section(title: str, items: list[str]) -> list[str]:
@@ -231,46 +249,14 @@ def _load_apply_prompt() -> str:
 
 def _get_llm_client(force_openai: bool = False) -> tuple[object, str] | None:
     try:
-        from langchain_openai import ChatOpenAI
+        from tools.langchain_client import build_chat_client
     except ImportError:
         return None
 
-    github_token = os.environ.get("GITHUB_TOKEN")
-    openai_token = os.environ.get("OPENAI_API_KEY")
-    if not github_token and not openai_token:
+    resolved = build_chat_client(force_openai=force_openai)
+    if not resolved:
         return None
-
-    from tools.llm_provider import DEFAULT_MODEL, GITHUB_MODELS_BASE_URL
-
-    # If force_openai is True, skip GitHub Models and use OpenAI directly
-    if force_openai and openai_token:
-        return (
-            ChatOpenAI(
-                model=DEFAULT_MODEL,
-                api_key=openai_token,
-                temperature=0.1,
-            ),
-            "openai",
-        )
-
-    if github_token:
-        return (
-            ChatOpenAI(
-                model=DEFAULT_MODEL,
-                base_url=GITHUB_MODELS_BASE_URL,
-                api_key=github_token,
-                temperature=0.1,
-            ),
-            "github-models",
-        )
-    return (
-        ChatOpenAI(
-            model=DEFAULT_MODEL,
-            api_key=openai_token,
-            temperature=0.1,
-        ),
-        "openai",
-    )
+    return resolved.client, resolved.provider
 
 
 def _normalize_heading(text: str) -> str:
@@ -575,29 +561,37 @@ def _normalize_result(
 
 
 def _process_llm_response(
-    response: Any, provider: str, use_llm: bool
-) -> IssueOptimizationResult | None:
-    """Process LLM response and return normalized result, or None if processing fails."""
+    response: Any, provider: str, use_llm: bool, *, client: object | None = None
+) -> tuple[IssueOptimizationResult | None, str | None]:
+    """Process LLM response and return (result, error)."""
     content = getattr(response, "content", None) or str(response)
-    payload = _extract_json_payload(content)
-    if payload:
-        try:
-            data = json.loads(payload)
-        except json.JSONDecodeError:
-            return None
-        if isinstance(data, dict):
-            result = _normalize_result(data, provider)
-            result.task_splitting = _ensure_task_decomposition(
-                result.task_splitting, use_llm=use_llm
-            )
-            return result
-    return None
+    parsed = parse_structured_output(
+        content,
+        IssueOptimizationPayload,
+        repair=(
+            build_repair_callback(client, template=ISSUE_OPTIMIZER_REPAIR_PROMPT)
+            if client is not None
+            else None
+        ),
+        max_repair_attempts=1,
+    )
+    if parsed.payload is None:
+        if parsed.error_stage == "repair_unavailable":
+            return None, "LLM output failed validation and could not be repaired."
+        if parsed.error_stage == "repair_validation":
+            return None, f"LLM repair failed validation: {parsed.error_detail}"
+        return None, f"LLM output failed validation: {parsed.error_detail}"
+
+    result = _normalize_result(parsed.payload.model_dump(), provider)
+    result.task_splitting = _ensure_task_decomposition(result.task_splitting, use_llm=use_llm)
+    return result, None
 
 
 def analyze_issue(issue_body: str, *, use_llm: bool = True) -> IssueOptimizationResult:
     if not issue_body:
         issue_body = ""
 
+    last_error: str | None = None
     if use_llm:
         from tools.llm_provider import _is_token_limit_error
 
@@ -621,9 +615,14 @@ def analyze_issue(issue_body: str, *, use_llm: bool = True) -> IssueOptimization
                             ),
                         }
                     )
-                    result = _process_llm_response(response, provider, use_llm)
+                    result, error = _process_llm_response(
+                        response, provider, use_llm, client=client
+                    )
                     if result:
                         return result
+                    if error:
+                        last_error = error
+                        print(error, file=sys.stderr)
                 except Exception as e:
                     # If GitHub Models hit token limit, retry with OpenAI API
                     if _is_token_limit_error(e) and provider == "github-models":
@@ -644,8 +643,11 @@ def analyze_issue(issue_body: str, *, use_llm: bool = True) -> IssueOptimization
                                         ),
                                     }
                                 )
-                                result = _process_llm_response(
-                                    response, openai_provider, use_llm=use_llm
+                                result, error = _process_llm_response(
+                                    response,
+                                    openai_provider,
+                                    use_llm=use_llm,
+                                    client=openai_client,
                                 )
                                 if result is not None:
                                     print(
@@ -653,6 +655,9 @@ def analyze_issue(issue_body: str, *, use_llm: bool = True) -> IssueOptimization
                                         file=sys.stderr,
                                     )
                                     return result
+                                if error:
+                                    last_error = error
+                                    print(error, file=sys.stderr)
                             except Exception as openai_error:
                                 err_type = type(openai_error).__name__
                                 print(
@@ -673,6 +678,10 @@ def analyze_issue(issue_body: str, *, use_llm: bool = True) -> IssueOptimization
                         )
 
     result = _fallback_analysis(issue_body)
+    if last_error:
+        note = result.overall_notes or ""
+        detail = f"LLM structured output failed: {last_error}"
+        result.overall_notes = f"{note} {detail}".strip()
     result.task_splitting = _ensure_task_decomposition(result.task_splitting, use_llm=False)
     return result
 
@@ -713,7 +722,11 @@ def _append_deferred_tasks(formatted_body: str, suggestions: dict[str, Any]) -> 
     return "\n".join(parts).strip()
 
 
-def _apply_task_decomposition(formatted_body: str, suggestions: dict[str, Any]) -> str:
+def _apply_task_decomposition(formatted_body: str | None, suggestions: dict[str, Any]) -> str:
+    # Guard against None input (can happen when issue body is too large)
+    if formatted_body is None:
+        return ""
+
     raw_entries = suggestions.get("task_splitting")
     if not isinstance(raw_entries, list) or not raw_entries:
         return formatted_body

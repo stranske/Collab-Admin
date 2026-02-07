@@ -13,12 +13,14 @@ import json
 import os
 import re
 import sys
-import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
 
-from pydantic import BaseModel, Field, ValidationError
+from pydantic import BaseModel, Field
+from scripts.langchain.structured_output import build_repair_callback, parse_structured_output
+
+from scripts import api_client
 
 PR_EVALUATION_PROMPT = """
 You are reviewing a **merged** pull request to evaluate whether the code
@@ -92,6 +94,15 @@ class EvaluationResult(BaseModel):
     error: str | None = None
 
 
+class EvaluationPayload(BaseModel):
+    model_config = {"extra": "ignore"}
+    verdict: Literal["PASS", "CONCERNS", "FAIL"]
+    scores: EvaluationScores | None = None
+    confidence: float | None = Field(default=None, ge=0, le=1)
+    concerns: list[str] = Field(default_factory=list)
+    summary: str | None = None
+
+
 def _ensure_prompt_rubric(prompt: str) -> str:
     lowered = prompt.lower()
     if all(area in lowered for area in REQUIRED_EVALUATION_AREAS):
@@ -131,116 +142,26 @@ def _get_llm_client(
         Tuple of (client, provider_name) or None if no credentials available.
     """
     try:
-        from langchain_openai import ChatOpenAI
+        from tools.langchain_client import build_chat_client
     except ImportError:
         return None
 
-    github_token = os.environ.get("GITHUB_TOKEN")
-    openai_token = os.environ.get("OPENAI_API_KEY")
-    if not github_token and not openai_token:
+    resolved = build_chat_client(model=model, provider=provider)
+    if not resolved:
         return None
-
-    from tools.llm_provider import DEFAULT_MODEL, GITHUB_MODELS_BASE_URL
-
-    # Use the provided model or fall back to default
-    selected_model = model or DEFAULT_MODEL
-
-    # Explicit provider selection
-    if provider == "openai":
-        if not openai_token:
-            return None
-        return (
-            ChatOpenAI(
-                model=selected_model,
-                api_key=openai_token,
-                temperature=0.1,
-            ),
-            f"openai/{selected_model}",
-        )
-
-    if provider == "github-models":
-        if not github_token:
-            return None
-        return (
-            ChatOpenAI(
-                model=selected_model,
-                base_url=GITHUB_MODELS_BASE_URL,
-                api_key=github_token,
-                temperature=0.1,
-            ),
-            f"github-models/{selected_model}",
-        )
-
-    # Auto-select: If OPENAI_API_KEY is available and either a custom model is requested
-    # OR GITHUB_TOKEN is not available, prefer OpenAI for better model availability
-    if openai_token and (model or not github_token):
-        return (
-            ChatOpenAI(
-                model=selected_model,
-                api_key=openai_token,
-                temperature=0.1,
-            ),
-            f"openai/{selected_model}",
-        )
-
-    # Default: use GitHub Models with GITHUB_TOKEN
-    if github_token:
-        return (
-            ChatOpenAI(
-                model=selected_model,
-                base_url=GITHUB_MODELS_BASE_URL,
-                api_key=github_token,
-                temperature=0.1,
-            ),
-            f"github-models/{selected_model}",
-        )
+    return resolved.client, resolved.provider_label
 
 
 def _get_llm_clients(
     model1: str | None = None, model2: str | None = None
 ) -> list[tuple[object, str, str]]:
     try:
-        from langchain_openai import ChatOpenAI
+        from tools.langchain_client import build_chat_clients
     except ImportError:
         return []
 
-    github_token = os.environ.get("GITHUB_TOKEN")
-    openai_token = os.environ.get("OPENAI_API_KEY")
-    if not github_token and not openai_token:
-        return []
-
-    from tools.llm_provider import DEFAULT_MODEL, GITHUB_MODELS_BASE_URL
-
-    # Use provided models or fall back to DEFAULT_MODEL
-    first_model = model1 or DEFAULT_MODEL
-    second_model = model2 or model1 or DEFAULT_MODEL
-
-    clients: list[tuple[object, str, str]] = []
-    if github_token:
-        try:
-            client = ChatOpenAI(
-                model=first_model,
-                base_url=GITHUB_MODELS_BASE_URL,
-                api_key=github_token,
-                temperature=0.1,
-            )
-            clients.append((client, "github-models", first_model))
-        except Exception:
-            # GitHub Models client initialization failed (likely credential/permission issue)
-            # Skip this provider and continue with others
-            pass
-    if openai_token:
-        try:
-            client = ChatOpenAI(
-                model=second_model,
-                api_key=openai_token,
-                temperature=0.1,
-            )
-            clients.append((client, "openai", second_model))
-        except Exception:
-            # OpenAI client initialization failed
-            pass
-    return clients
+    clients = build_chat_clients(model1=model1, model2=model2)
+    return [(entry.client, entry.provider, entry.model) for entry in clients]
 
 
 @dataclass(frozen=True)
@@ -270,7 +191,7 @@ class ComparisonRunner:
             )
 
         content = getattr(response, "content", None) or str(response)
-        result = _parse_llm_response(content, provider)
+        result = _parse_llm_response(content, provider, client=client)
         result.model = model
         return result
 
@@ -379,20 +300,13 @@ def _create_followup_issue(
     if pr_number:
         title = f"LLM evaluation concerns for PR #{pr_number}"
 
-    payload = json.dumps({"title": title, "body": body, "labels": labels}).encode("utf-8")
-    request = urllib.request.Request(
-        f"https://api.github.com/repos/{repo}/issues",
-        data=payload,
-        method="POST",
-    )
-    request.add_header("Authorization", f"Bearer {token}")
-    request.add_header("Accept", "application/vnd.github+json")
-    request.add_header("Content-Type", "application/json")
-    request.add_header("X-GitHub-Api-Version", "2022-11-28")
+    try:
+        issue = api_client.create_issue(repo, token, title, body, labels)
+    except RuntimeError as exc:
+        print(f"pr_verifier: failed to create follow-up issue: {exc}", file=sys.stderr)
+        return None
 
-    with urllib.request.urlopen(request) as response:
-        data = json.loads(response.read().decode("utf-8"))
-    issue_number = data.get("number")
+    issue_number = issue.get("number")
     if isinstance(issue_number, int):
         return issue_number
     return None
@@ -413,56 +327,41 @@ def _fallback_evaluation(
     )
 
 
-def _extract_json_block(text: str) -> str | None:
-    match = re.search(r"```json\s*(\{.*?\})\s*```", text, re.DOTALL)
-    if match:
-        return match.group(1).strip()
-    match = re.search(r"(\{.*\})", text, re.DOTALL)
-    if match:
-        return match.group(1).strip()
-    return None
+def _parse_llm_response(
+    content: str, provider: str, *, client: object | None = None
+) -> EvaluationResult:
+    parsed = parse_structured_output(
+        content,
+        EvaluationPayload,
+        repair=(build_repair_callback(client) if client is not None else None),
+        max_repair_attempts=1,
+    )
+    if parsed.payload is None:
+        if parsed.error_stage == "repair_validation":
+            error = f"Failed to parse JSON response after repair: {parsed.error_detail}"
+        else:
+            error = f"Failed to parse JSON response: {parsed.error_detail}"
+        return EvaluationResult(
+            verdict="CONCERNS",
+            scores=None,
+            concerns=[],
+            summary=None,
+            provider_used=provider,
+            used_llm=True,
+            raw_content=content,
+            error=error,
+        )
 
-
-def _parse_verdict(text: str) -> Literal["PASS", "CONCERNS", "FAIL"]:
-    match = re.search(r"\b(PASS|CONCERNS|FAIL)\b", text, re.IGNORECASE)
-    if match:
-        return match.group(1).upper()  # type: ignore[return-value]
-    return "CONCERNS"
-
-
-def _parse_llm_response(content: str, provider: str) -> EvaluationResult:
-    json_block = _extract_json_block(content)
-    if json_block:
-        try:
-            payload = json.loads(json_block)
-            return EvaluationResult.model_validate(
-                {
-                    **payload,
-                    "provider_used": provider,
-                    "used_llm": True,
-                    "raw_content": content,
-                }
-            )
-        except (json.JSONDecodeError, ValidationError, TypeError) as exc:
-            return EvaluationResult(
-                verdict=_parse_verdict(content),
-                scores=None,
-                concerns=[],
-                summary=content,
-                provider_used=provider,
-                used_llm=True,
-                raw_content=content,
-                error=f"Failed to parse JSON response: {exc}",
-            )
-
+    payload = parsed.payload
     return EvaluationResult(
-        verdict=_parse_verdict(content),
-        scores=None,
-        concerns=[],
-        summary=content,
+        verdict=payload.verdict,
+        scores=payload.scores,
+        confidence=payload.confidence,
+        concerns=payload.concerns,
+        summary=payload.summary,
         provider_used=provider,
         used_llm=True,
-        raw_content=content,
+        raw_content=parsed.raw_content or content,
     )
 
 
@@ -511,7 +410,9 @@ def evaluate_pr(
                 try:
                     response = fallback_client.invoke(prompt)
                     content = getattr(response, "content", None) or str(response)
-                    result = _parse_llm_response(content, fallback_provider_name)
+                    result = _parse_llm_response(
+                        content, fallback_provider_name, client=fallback_client
+                    )
                     # Add note about fallback
                     if result.summary:
                         result = EvaluationResult(
@@ -534,7 +435,7 @@ def evaluate_pr(
         return _fallback_evaluation(f"LLM invocation failed: {exc}")
 
     content = getattr(response, "content", None) or str(response)
-    return _parse_llm_response(content, provider_name)
+    return _parse_llm_response(content, provider_name, client=client)
 
 
 def evaluate_pr_multiple(

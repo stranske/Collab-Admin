@@ -200,6 +200,7 @@ def build_chat_client(
 
     try:
         from langchain_anthropic import ChatAnthropic
+
         chat_anthropic_cls = ChatAnthropic
     except ImportError:
         chat_anthropic_cls = None
@@ -321,6 +322,7 @@ def build_chat_clients(
 
     try:
         from langchain_anthropic import ChatAnthropic
+
         chat_anthropic_cls = ChatAnthropic
     except ImportError:
         chat_anthropic_cls = None

@@ -19,21 +19,13 @@ def test_csv_templates_match_policy_headers() -> None:
     """CSV templates should match policy-defined headers."""
     repo_root = Path(__file__).resolve().parents[1]
     templates = {
-        repo_root
-        / "logs"
-        / "expenses"
-        / "expense_template.csv": (
+        repo_root / "logs" / "expenses" / "expense_template.csv": (
             "date,amount,currency,category,description,receipt_link,issue_or_pr,preapproval_link"
         ),
-        repo_root
-        / "logs"
-        / "friction"
-        / "friction_template.csv": (
+        repo_root / "logs" / "friction" / "friction_template.csv": (
             "date,repo,context,minutes_lost,what_broke,what_was_confusing,what_fixed_it,pr_or_issue"
         ),
-        repo_root
-        / "logs"
-        / "time_log_template.csv": (
+        repo_root / "logs" / "time_log_template.csv": (
             "date,hours,repo,issue_or_pr,category,description,artifact_link"
         ),
     }

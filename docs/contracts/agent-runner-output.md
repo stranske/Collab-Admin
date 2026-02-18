@@ -303,7 +303,7 @@ llm-has-completions: "false"
 ## See Also
 
 - [Provider-Agnostic Coding Agents Plan](https://github.com/stranske/Workflows/blob/main/docs/plans/provider-agnostic-coding-agents.md)
-- [Agent Registry Schema](https://github.com/stranske/Workflows/blob/main/.github/agents/registry.yml)
+- [Agent Registry Schema](../../.github/agents/registry.yml)
 - [Keepalive Goals and Plumbing](https://github.com/stranske/Workflows/blob/main/docs/keepalive/GoalsAndPlumbing.md)
 - [Multi-Agent Routing Architecture](https://github.com/stranske/Workflows/blob/main/docs/keepalive/MULTI_AGENT_ROUTING.md)
 

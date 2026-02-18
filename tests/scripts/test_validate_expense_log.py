@@ -9,7 +9,9 @@ from pathlib import Path
 
 
 def load_module():
-    script_path = Path(__file__).resolve().parents[2] / "scripts" / "validate_expense_log.py"
+    script_path = (
+        Path(__file__).resolve().parents[2] / "scripts" / "validate_expense_log.py"
+    )
     spec = importlib.util.spec_from_file_location("validate_expense_log", script_path)
     module = importlib.util.module_from_spec(spec)
     assert spec.loader is not None

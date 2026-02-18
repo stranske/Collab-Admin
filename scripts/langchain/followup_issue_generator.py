@@ -638,7 +638,9 @@ def extract_verification_data(comment_body: str) -> VerificationData:
 
     # Try plain label format: "Concerns:" followed by bullets
     concerns_label_matches = re.findall(
-        r"^Concerns:\s*\n((?:\s*-\s+[^\n]+\n?)+)", comment_body, re.IGNORECASE | re.MULTILINE
+        r"^Concerns:\s*\n((?:\s*-\s+[^\n]+\n?)+)",
+        comment_body,
+        re.IGNORECASE | re.MULTILINE,
     )
     for match in concerns_label_matches:
         for line in match.split("\n"):
@@ -709,7 +711,9 @@ def extract_verification_data(comment_body: str) -> VerificationData:
 
     # Extract non-actionable items
     non_actionable_match = re.search(
-        r"Non-actionable items.*?:\s*\n([\s\S]*?)(?=\n\n|\n###|\n##|$)", comment_body, re.IGNORECASE
+        r"Non-actionable items.*?:\s*\n([\s\S]*?)(?=\n\n|\n###|\n##|$)",
+        comment_body,
+        re.IGNORECASE,
     )
     if non_actionable_match:
         items_text = non_actionable_match.group(1)
@@ -721,7 +725,9 @@ def extract_verification_data(comment_body: str) -> VerificationData:
 
     # Extract structural issues
     structural_match = re.search(
-        r"### ⚠️ Issues Detected.*?\n([\s\S]*?)(?=\n##|\n---|\Z)", comment_body, re.IGNORECASE
+        r"### ⚠️ Issues Detected.*?\n([\s\S]*?)(?=\n##|\n---|\Z)",
+        comment_body,
+        re.IGNORECASE,
     )
     if structural_match:
         issues_text = structural_match.group(1)
@@ -1700,10 +1706,12 @@ def main() -> int:
     # Debug: show extracted data
     print(f"Extracted {len(verification_data.concerns)} concerns", file=sys.stderr)
     print(
-        f"Extracted {len(verification_data.provider_verdicts)} provider verdicts", file=sys.stderr
+        f"Extracted {len(verification_data.provider_verdicts)} provider verdicts",
+        file=sys.stderr,
     )
     print(
-        f"Extracted {len(original_issue.acceptance_criteria)} acceptance criteria", file=sys.stderr
+        f"Extracted {len(original_issue.acceptance_criteria)} acceptance criteria",
+        file=sys.stderr,
     )
     print(f"Extracted {len(original_issue.tasks)} tasks", file=sys.stderr)
     if verification_data.concerns:

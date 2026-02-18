@@ -210,9 +210,9 @@ def collect_ecosystem_status(
     workflows_using = len({ref.workflow_file for ref in references})
 
     # Check if sync-related workflow exists
-    sync_workflow_exists = (
-        workflows_dir / "maint-68-sync-consumer-repos.yml"
-    ).exists() or any("sync" in f.name.lower() for f in workflows_dir.glob("*.yml"))
+    sync_workflow_exists = (workflows_dir / "maint-68-sync-consumer-repos.yml").exists() or any(
+        "sync" in f.name.lower() for f in workflows_dir.glob("*.yml")
+    )
 
     return EcosystemStatus(
         collected_at=datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S UTC"),
@@ -254,9 +254,7 @@ def _dataclass_to_dict(obj: Any) -> Any:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(
-        description="Collect Workflows ecosystem linkage status."
-    )
+    parser = argparse.ArgumentParser(description="Collect Workflows ecosystem linkage status.")
     parser.add_argument(
         "--workflows-dir",
         type=Path,

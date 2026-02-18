@@ -159,13 +159,9 @@ def _summarize_time_logs(time_log_dir: Path) -> TimeLogSummary:
                     skipped_rows += 1
                     continue
                 workstream = (row.get("repo") or "Unknown").strip() or "Unknown"
-                category = (
-                    row.get("category") or "Uncategorized"
-                ).strip() or "Uncategorized"
+                category = (row.get("category") or "Uncategorized").strip() or "Uncategorized"
                 total_hours += hours
-                workstream_hours[workstream] = (
-                    workstream_hours.get(workstream, 0.0) + hours
-                )
+                workstream_hours[workstream] = workstream_hours.get(workstream, 0.0) + hours
                 category_hours[category] = category_hours.get(category, 0.0) + hours
                 entries += 1
 
@@ -204,9 +200,7 @@ def _summarize_reviews(reviews_dir: Path) -> ReviewSummary:
             numeric_ratings_found=0,
         )
 
-    review_paths = sorted(
-        list(reviews_dir.rglob("*.yml")) + list(reviews_dir.rglob("*.yaml"))
-    )
+    review_paths = sorted(list(reviews_dir.rglob("*.yml")) + list(reviews_dir.rglob("*.yaml")))
 
     for path in review_paths:
         data = _load_yaml(path)
@@ -231,9 +225,7 @@ def _summarize_reviews(reviews_dir: Path) -> ReviewSummary:
             numeric_ratings.append(rating_value)
             numeric_by_workstream.setdefault(workstream, []).append(rating_value)
 
-    numeric_average = (
-        sum(numeric_ratings) / len(numeric_ratings) if numeric_ratings else None
-    )
+    numeric_average = sum(numeric_ratings) / len(numeric_ratings) if numeric_ratings else None
     numeric_average_by_workstream = {
         workstream: sum(values) / len(values)
         for workstream, values in numeric_by_workstream.items()
@@ -279,9 +271,7 @@ def _load_issue_pr_metrics(path: Path) -> IssuePrSummary | None:
     issues = raw.get("issues", {})
     prs = raw.get("pull_requests", {})
     issues_open = _coerce_int(issues.get("open")) if isinstance(issues, dict) else None
-    issues_closed = (
-        _coerce_int(issues.get("closed")) if isinstance(issues, dict) else None
-    )
+    issues_closed = _coerce_int(issues.get("closed")) if isinstance(issues, dict) else None
     prs_open = _coerce_int(prs.get("open")) if isinstance(prs, dict) else None
     prs_closed = _coerce_int(prs.get("closed")) if isinstance(prs, dict) else None
 
@@ -307,9 +297,7 @@ def _load_issue_pr_metrics(path: Path) -> IssuePrSummary | None:
         updated = entry.get("updated_at") or entry.get("updated") or entry.get("date")
         number_text = f"#{number}" if number is not None else ""
         updated_text = f" ({updated})" if updated else ""
-        recent_activity.append(
-            f"{item_type} {number_text} {title}{updated_text}".strip()
-        )
+        recent_activity.append(f"{item_type} {number_text} {title}{updated_text}".strip())
 
     return IssuePrSummary(
         issues_open=issues_open,
@@ -403,9 +391,7 @@ def _render_time_section(summary: TimeLogSummary) -> list[str]:
     return lines
 
 
-def _render_review_section(
-    summary: ReviewSummary, config: DashboardConfig
-) -> list[str]:
+def _render_review_section(summary: ReviewSummary, config: DashboardConfig) -> list[str]:
     lines = ["## Review Summary"]
     if summary.total_reviews == 0:
         lines.append("No reviews found.")
@@ -417,14 +403,10 @@ def _render_review_section(
     if summary.numeric_ratings_found == 0:
         return lines
     if config.show_numeric_scoring and summary.numeric_average is not None:
-        lines.append(
-            f"Average rating (numeric): {_format_float(summary.numeric_average)}"
-        )
+        lines.append(f"Average rating (numeric): {_format_float(summary.numeric_average)}")
         if summary.numeric_average_by_workstream:
             lines.append("Average rating by workstream (numeric):")
-            for workstream, average in sorted(
-                summary.numeric_average_by_workstream.items()
-            ):
+            for workstream, average in sorted(summary.numeric_average_by_workstream.items()):
                 lines.append(f"- {workstream}: {_format_float(average)}")
     else:
         lines.append("Numeric ratings exist but are hidden by dashboard config.")
@@ -438,9 +420,7 @@ def _render_issue_pr_section(summary: IssuePrSummary | None) -> list[str]:
         return lines
     if summary.issues_open is not None or summary.issues_closed is not None:
         open_count = summary.issues_open if summary.issues_open is not None else "n/a"
-        closed_count = (
-            summary.issues_closed if summary.issues_closed is not None else "n/a"
-        )
+        closed_count = summary.issues_closed if summary.issues_closed is not None else "n/a"
         lines.append(f"Issues: open {open_count} | closed {closed_count}")
     if summary.prs_open is not None or summary.prs_closed is not None:
         open_count = summary.prs_open if summary.prs_open is not None else "n/a"
@@ -524,9 +504,7 @@ def _render_ecosystem_section(summary: EcosystemSummary | None) -> list[str]:
     if summary is None:
         lines.append("No ecosystem status data available.")
         lines.append("")
-        lines.append(
-            "*Run `python scripts/collect_ecosystem_status.py` to collect data.*"
-        )
+        lines.append("*Run `python scripts/collect_ecosystem_status.py` to collect data.*")
         return lines
 
     lines.append(f"Source: `{summary.workflows_source}`")
@@ -668,9 +646,7 @@ def main(argv: list[str] | None = None) -> int:
         except ValueError:
             print(f"Invalid --now value: {args.now}", file=sys.stderr)
             return 2
-        now = (
-            now.replace(tzinfo=dt.UTC) if now.tzinfo is None else now.astimezone(dt.UTC)
-        )
+        now = now.replace(tzinfo=dt.UTC) if now.tzinfo is None else now.astimezone(dt.UTC)
 
     markdown = build_dashboard(
         time_log_dir=args.time_log_dir,

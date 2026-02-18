@@ -85,9 +85,7 @@ def validate_row(
     return dt, hours, errors
 
 
-def validate_time_log(
-    path: str, *, verbose: bool = False, today: date | None = None
-) -> list[str]:
+def validate_time_log(path: str, *, verbose: bool = False, today: date | None = None) -> list[str]:
     today = today or date.today()
     with open(path, newline="", encoding="utf-8") as f:
         r = csv.DictReader(f)

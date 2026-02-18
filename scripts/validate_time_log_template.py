@@ -50,9 +50,7 @@ def validate_template(template_path: Path) -> tuple[bool, str]:
 
 def main() -> int:
     """Validate the time log template file."""
-    parser = argparse.ArgumentParser(
-        description="Validate time log template CSV format."
-    )
+    parser = argparse.ArgumentParser(description="Validate time log template CSV format.")
     parser.add_argument(
         "template",
         metavar="template.csv",

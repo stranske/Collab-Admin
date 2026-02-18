@@ -60,7 +60,9 @@ def _parse_datetime(dt_str: str) -> datetime:
     return datetime.fromisoformat(dt_str.replace("Z", "+00:00"))
 
 
-def _make_request(endpoint: str, token: str | None = None) -> dict[str, Any] | list[Any] | None:
+def _make_request(
+    endpoint: str, token: str | None = None
+) -> dict[str, Any] | list[Any] | None:
     """Make authenticated request to GitHub API."""
     headers = {"Accept": "application/vnd.github+json"}
     if token:
@@ -101,7 +103,9 @@ def fetch_issues(repo: str = DEFAULT_REPO, token: str | None = None) -> list[Iss
     return issues
 
 
-def fetch_pull_requests(repo: str = DEFAULT_REPO, token: str | None = None) -> list[Issue]:
+def fetch_pull_requests(
+    repo: str = DEFAULT_REPO, token: str | None = None
+) -> list[Issue]:
     """Fetch pull requests from repository."""
     data = _make_request(f"/repos/{repo}/pulls?state=all&per_page=30", token)
     if not data or not isinstance(data, list):
@@ -125,7 +129,9 @@ def fetch_pull_requests(repo: str = DEFAULT_REPO, token: str | None = None) -> l
     return prs
 
 
-def fetch_workflow_runs(repo: str = DEFAULT_REPO, token: str | None = None) -> list[WorkflowRun]:
+def fetch_workflow_runs(
+    repo: str = DEFAULT_REPO, token: str | None = None
+) -> list[WorkflowRun]:
     """Fetch recent workflow runs from repository."""
     data = _make_request(f"/repos/{repo}/actions/runs?per_page=20", token)
     if not data or not isinstance(data, dict):

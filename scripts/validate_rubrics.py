@@ -79,7 +79,9 @@ def main(argv: list[str] | None = None) -> int:
 
     errors = validate_rubrics(Path(args.rubrics_dir), args.check_structure)
     if errors:
-        message = "Rubric validation failed:\n" + "\n".join(f"- {error}" for error in errors)
+        message = "Rubric validation failed:\n" + "\n".join(
+            f"- {error}" for error in errors
+        )
         raise SystemExit(message)
 
     print("OK")

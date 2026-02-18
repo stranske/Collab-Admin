@@ -70,18 +70,24 @@ def _validate_project(path: Path, data: object) -> list[str]:
 
     proposal_date = project.get("proposal_version_date")
     if not isinstance(proposal_date, str) or not proposal_date.strip():
-        errors.append(f"{path}: project.proposal_version_date must be a non-empty string.")
+        errors.append(
+            f"{path}: project.proposal_version_date must be a non-empty string."
+        )
     else:
         try:
             date.fromisoformat(proposal_date)
         except ValueError:
-            errors.append(f"{path}: project.proposal_version_date must be YYYY-MM-DD format.")
+            errors.append(
+                f"{path}: project.proposal_version_date must be YYYY-MM-DD format."
+            )
 
     automation = project.get("automation_ecosystem")
     if not isinstance(automation, dict):
         errors.append(f"{path}: project.automation_ecosystem must be a mapping.")
     else:
-        missing = [field for field in AUTOMATION_REQUIRED_FIELDS if field not in automation]
+        missing = [
+            field for field in AUTOMATION_REQUIRED_FIELDS if field not in automation
+        ]
         if missing:
             errors.append(
                 f"{path}: project.automation_ecosystem missing fields: {', '.join(missing)}."
@@ -104,7 +110,9 @@ def _validate_project(path: Path, data: object) -> list[str]:
             if field not in constraints
         ]
         if missing:
-            errors.append(f"{path}: project.constraints missing fields: {', '.join(missing)}.")
+            errors.append(
+                f"{path}: project.constraints missing fields: {', '.join(missing)}."
+            )
         for field in CONSTRAINT_BOOL_FIELDS:
             if field in constraints and not isinstance(constraints[field], bool):
                 errors.append(f"{path}: project.constraints.{field} must be a boolean.")
@@ -124,17 +132,23 @@ def _validate_project(path: Path, data: object) -> list[str]:
             if not isinstance(stream, dict):
                 errors.append(f"{path}: project.workstreams[{idx}] must be a mapping.")
                 continue
-            missing = [field for field in WORKSTREAM_REQUIRED_FIELDS if field not in stream]
+            missing = [
+                field for field in WORKSTREAM_REQUIRED_FIELDS if field not in stream
+            ]
             if missing:
                 errors.append(
                     f"{path}: project.workstreams[{idx}] missing fields: {', '.join(missing)}."
                 )
                 continue
             errors.extend(
-                _validate_non_empty_str(path, f"project.workstreams[{idx}].id", stream["id"])
+                _validate_non_empty_str(
+                    path, f"project.workstreams[{idx}].id", stream["id"]
+                )
             )
             errors.extend(
-                _validate_non_empty_str(path, f"project.workstreams[{idx}].name", stream["name"])
+                _validate_non_empty_str(
+                    path, f"project.workstreams[{idx}].name", stream["name"]
+                )
             )
 
     return errors
@@ -242,7 +256,9 @@ def main(argv: list[str] | None = None) -> int:
         errors = validate_configs(Path(args.project_path), Path(args.dashboard_path))
 
     if errors:
-        message = "Config validation failed:\n" + "\n".join(f"- {error}" for error in errors)
+        message = "Config validation failed:\n" + "\n".join(
+            f"- {error}" for error in errors
+        )
         raise SystemExit(message)
 
     print("✓ Config validation passed")

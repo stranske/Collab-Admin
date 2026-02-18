@@ -63,7 +63,9 @@ def _write_metadata(
         metadata_lines.append(f"Provides-Extra: {extra}")
         for requirement in requirements:
             metadata_lines.append(f'Requires-Dist: {requirement}; extra == "{extra}"')
-    (dist_info_dir / "METADATA").write_text("\n".join(metadata_lines) + "\n", encoding="utf-8")
+    (dist_info_dir / "METADATA").write_text(
+        "\n".join(metadata_lines) + "\n", encoding="utf-8"
+    )
     (dist_info_dir / "WHEEL").write_text(
         "\n".join(
             [
@@ -96,7 +98,9 @@ def _collect_paths(root: Path) -> list[Path]:
 
 
 def _build_wheel(wheel_directory: str, *, editable: bool) -> str:
-    name, version, description, requires_python, dependencies, optional_deps = _project_metadata()
+    name, version, description, requires_python, dependencies, optional_deps = (
+        _project_metadata()
+    )
     dist = _normalize_dist_name(name)
     wheel_name = f"{dist}-{version}-py3-none-any.whl"
     wheel_dir = Path(wheel_directory)
@@ -119,7 +123,9 @@ def _build_wheel(wheel_directory: str, *, editable: bool) -> str:
 
         if editable:
             pth_name = f"{dist}.pth"
-            (tmp_path / pth_name).write_text(str(_project_root() / "src") + "\n", encoding="utf-8")
+            (tmp_path / pth_name).write_text(
+                str(_project_root() / "src") + "\n", encoding="utf-8"
+            )
             records.append((pth_name, *_hash_file(tmp_path / pth_name)))
         else:
             src_root = _project_root() / "src"
@@ -149,7 +155,9 @@ def _build_wheel(wheel_directory: str, *, editable: bool) -> str:
 
 
 def _prepare_metadata(metadata_directory: str) -> str:
-    name, version, description, requires_python, dependencies, optional_deps = _project_metadata()
+    name, version, description, requires_python, dependencies, optional_deps = (
+        _project_metadata()
+    )
     dist_info_name = _dist_info_name(name, version)
     dist_info_dir = Path(metadata_directory) / dist_info_name
     _write_metadata(

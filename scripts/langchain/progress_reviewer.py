@@ -130,7 +130,9 @@ def build_review_payload(result: ProgressReviewResult) -> dict:
         if analysis and analysis.blocking_issues:
             suggestions.extend([item for item in analysis.blocking_issues if item])
         if analysis and analysis.scope_drift_identified:
-            suggestions.extend([item for item in analysis.scope_drift_identified if item])
+            suggestions.extend(
+                [item for item in analysis.scope_drift_identified if item]
+            )
         payload["review"] = {
             "score": result.alignment_score,
             "feedback": result.feedback_for_agent,
@@ -268,9 +270,15 @@ def build_review_prompt(
     rounds_without_completion: int,
 ) -> str:
     """Build the prompt for LLM review."""
-    criteria_text = "\n".join(f"- {c}" for c in acceptance_criteria) or "No criteria provided"
-    commits_text = "\n".join(f"- {c}" for c in recent_commits[-20:]) or "No commits"  # Last 20
-    files_text = "\n".join(f"- {f}" for f in files_changed[-30:]) or "No files"  # Last 30
+    criteria_text = (
+        "\n".join(f"- {c}" for c in acceptance_criteria) or "No criteria provided"
+    )
+    commits_text = (
+        "\n".join(f"- {c}" for c in recent_commits[-20:]) or "No commits"
+    )  # Last 20
+    files_text = (
+        "\n".join(f"- {f}" for f in files_changed[-30:]) or "No files"
+    )  # Last 30
 
     return PROGRESS_REVIEW_PROMPT.format(
         rounds_without_completion=rounds_without_completion,
@@ -354,7 +362,8 @@ def review_progress_with_llm(
             ),
             feedback_for_agent="Review your recent work against the acceptance criteria.",
             summary=(
-                f"Heuristic review: {len(aligned)}/" f"{len(recent_commits)} commits appear aligned"
+                f"Heuristic review: {len(aligned)}/"
+                f"{len(recent_commits)} commits appear aligned"
             ),
             used_llm=False,
             error="LLM unavailable, using heuristic fallback",
@@ -454,7 +463,8 @@ def review_progress(
             ),
             feedback_for_agent="Work appears aligned. Continue toward task completion.",
             summary=(
-                f"Heuristic: {len(aligned)}/" f"{len(recent_commits)} commits aligned with criteria"
+                f"Heuristic: {len(aligned)}/"
+                f"{len(recent_commits)} commits aligned with criteria"
             ),
             used_llm=False,
         )

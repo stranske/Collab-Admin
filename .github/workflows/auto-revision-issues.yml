@@ -32,7 +32,7 @@ jobs:
 
       - name: Collect changed review files
         id: changed
-        uses: actions/github-script@v8
+        uses: actions/github-script@v9.0.0
         with:
           script: |
             const reviewFiles = new Set();

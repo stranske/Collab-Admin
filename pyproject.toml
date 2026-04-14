@@ -23,7 +23,7 @@ classifiers = [
     "Programming Language :: Python :: 3.13",
 ]
 dependencies = [
-    "altair>=5.2.0",
+    "altair>=6.0.0",
     "pandas>=2.2.0",
     "pyyaml>=6.0.1",
     "streamlit>=1.36.0",

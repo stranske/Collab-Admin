@@ -16,7 +16,7 @@ jobs:
       - uses: actions/checkout@v6
       - uses: actions/setup-python@v6
         with:
-          python-version: "3.12"
+          python-version: "3.14"
       - name: Install PyYAML
         run: pip install pyyaml
       - name: Validate rubrics
@@ -37,7 +37,7 @@ jobs:
       - uses: actions/checkout@v6
       - uses: actions/setup-python@v6
         with:
-          python-version: "3.12"
+          python-version: "3.14"
       - name: Install PyYAML
         run: pip install pyyaml
       - name: Validate project config
@@ -65,7 +65,7 @@ jobs:
       - uses: actions/checkout@v6
       - uses: actions/setup-python@v6
         with:
-          python-version: "3.12"
+          python-version: "3.14"
       - name: Validate time log template
         run: |
           if [ -f logs/time_log_template.csv ]; then
@@ -94,7 +94,7 @@ jobs:
       - uses: actions/checkout@v6
       - uses: actions/setup-python@v6
         with:
-          python-version: "3.12"
+          python-version: "3.14"
       - name: Validate expense logs
         run: |
           if ls logs/expenses/*.csv 1> /dev/null 2>&1; then
@@ -116,7 +116,7 @@ jobs:
       - uses: actions/checkout@v6
       - uses: actions/setup-python@v6
         with:
-          python-version: "3.12"
+          python-version: "3.14"
       - name: Validate friction logs
         run: |
           if ls logs/friction/*.csv 1> /dev/null 2>&1; then
@@ -138,7 +138,7 @@ jobs:
       - uses: actions/checkout@v6
       - uses: actions/setup-python@v6
         with:
-          python-version: "3.12"
+          python-version: "3.14"
       - name: Check internal markdown links
         run: |
           python << 'SCRIPT'

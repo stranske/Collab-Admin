@@ -10,7 +10,7 @@ attrs==25.4.0
     # via
     #   jsonschema
     #   referencing
-black==26.3.1
+black==26.5.1
     # via collab-admin (pyproject.toml)
 blinker==1.9.0
     # via streamlit
@@ -24,7 +24,7 @@ click==8.3.1
     # via
     #   black
     #   streamlit
-coverage==7.13.0
+coverage==7.15.2
     # via pytest-cov
 gitdb==4.0.12
     # via gitpython
@@ -46,7 +46,7 @@ librt==0.10.0
     # via mypy
 markupsafe==3.0.3
     # via jinja2
-mypy==2.0.0
+mypy==2.3.0
     # via collab-admin (pyproject.toml)
 mypy-extensions==1.1.0
     # via
@@ -89,7 +89,7 @@ pydeck==0.9.1
     # via streamlit
 pygments==2.19.2
     # via pytest
-pytest==9.0.3
+pytest==9.1.1
     # via
     #   collab-admin (pyproject.toml)
     #   pytest-cov
@@ -115,7 +115,7 @@ rpds-py==0.30.0
     # via
     #   jsonschema
     #   referencing
-ruff==0.15.12
+ruff==0.15.22
     # via collab-admin (pyproject.toml)
 six==1.17.0
     # via python-dateutil

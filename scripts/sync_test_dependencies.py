@@ -135,14 +135,13 @@ TEST_FRAMEWORK_MODULES = {
 }
 
 # Base project modules (installed via ``pip install -e .``)
+# Retired package names must stay absent from this canonical consumer set.
 # Additional modules are detected dynamically from src/ directory
 _BASE_PROJECT_MODULES = {
     "analysis",
     "cli",
     "trend_analysis",
-    "trend_portfolio_app",
     "streamlit_app",
-    "trend_model",
     "trend",
     "src",
     "data",
@@ -222,7 +221,7 @@ def _detect_local_project_modules() -> set[str]:
             elif item.suffix == ".py":
                 if item.name == "conftest.py":
                     detected.add("conftest")
-                elif not item.name.startswith("test_") and item.name != "__init__.py":
+                elif item.name != "__init__.py":
                     detected.add(item.stem)
 
     return detected

@@ -170,7 +170,7 @@ Create these labels in **Settings** → **Labels** (exact names required):
 | Label | Color | Description | Required For |
 |-------|-------|-------------|--------------|
 | `agent:codex` | `#0052CC` | Assigns Codex agent to issue | Issue intake, keepalive |
-| `agent:retry` | `#D93F0B` | Retries keepalive loop for agent PRs | Keepalive recovery |
+| `agent:retry` | `#D93F0B` | Optional recovery-request marker; does not trigger a retry by itself | Operator visibility |
 | `agent:needs-attention` | `#D93F0B` | Agent needs human help | Error recovery |
 | `agents:keepalive` | `#0E8A16` | Enables keepalive automation | PR keepalive loops |
 | `agents:auto-pilot` | `#0052CC` | Triggers end-to-end auto-pilot pipeline | Issue automation |
@@ -212,7 +212,7 @@ REPO="stranske/<your-repo>"
 
 # Create required labels
 gh label create "agent:codex" --color "0052CC" --description "Assigns Codex agent" --repo "$REPO" 2>/dev/null || echo "agent:codex exists"
-gh label create "agent:retry" --color "D93F0B" --description "Retries keepalive loop" --repo "$REPO" 2>/dev/null || echo "agent:retry exists"
+gh label create "agent:retry" --color "D93F0B" --description "Marks a requested keepalive recovery" --repo "$REPO" 2>/dev/null || echo "agent:retry exists"
 gh label create "agent:needs-attention" --color "D93F0B" --description "Agent needs human help" --repo "$REPO" 2>/dev/null || echo "agent:needs-attention exists"
 gh label create "agents:keepalive" --color "0E8A16" --description "Enables keepalive automation" --repo "$REPO" 2>/dev/null || echo "agents:keepalive exists"
 gh label create "agents:auto-pilot" --color "0052CC" --description "Runs full auto-pilot issue pipeline" --repo "$REPO" 2>/dev/null || echo "agents:auto-pilot exists"
@@ -312,6 +312,27 @@ Add each secret:
 - [ ] `OPENAI_API_KEY` — Required for verify/decompose/optimizer workflows
 - [ ] `CLAUDE_API_STRANSKE` — Required for verify/decompose/optimizer workflows
 - [ ] `CLAUDE_CODE_OAUTH_TOKEN` (or `CLAUDE_AUTH_JSON`) — Required for Claude CLI workflow runs
+
+#### Verify each token's IDENTITY before writing it
+
+Whatever the source, confirm a PAT authenticates as the account you expect before
+setting it. This is cheap and it catches the failure that silent copy/paste does not:
+
+```bash
+GH_TOKEN='<candidate>' gh api user --jq .login     # expect stranske-automation-bot for SERVICE_BOT_PAT
+```
+
+Two real errors during the 2026-08-21 Orchestrator onboarding, both caught this way
+and neither visible from the value itself:
+
+* the label/value pairing was ambiguous where two tokens sat under one heading —
+  identity resolved which was which;
+* both `*_APP_ID` secrets were set to surrounding prose (`"App ID - 2529721"`, and
+  the sub-heading `"App ID"`) rather than the number. App IDs are 6-9 digits; if the
+  value is not all digits, it is wrong.
+
+- [ ] Every PAT verified to authenticate as the intended account
+- [ ] Every `*_APP_ID` confirmed to be digits only
 
 ### 3.2.1 Bulk PAT Sync (No Organization Required)
 
@@ -489,107 +510,54 @@ Apps to verify:
 
 ### 4.1 Verify Workflow Files
 
-Check that these workflows exist in `.github/workflows/`:
+Compare `.github/workflows/` with the canonical consumer template in
+`stranske/Workflows/templates/consumer-repo/`. At minimum, verify the deployed
+entry points used by this repository:
 
 | Workflow | Purpose | Critical for Keepalive |
 |----------|---------|------------------------|
-| `pr-00-gate.yml` | CI enforcement, posts commit status | **YES** |
-| `agents-pr-meta.yml` | Detects keepalive comments | **YES** |
-| `agents-70-orchestrator.yml` | Runs keepalive sweeps (every 30 min) | **YES** |
-| `agents-63-issue-intake.yml` | Creates PRs from labeled issues (full workflow) | No |
-| `agents-keepalive-loop.yml` | Keepalive iteration execution | **YES** |
+| `pr-00-gate.yml` | Required CI and exact-head enforcement | **YES** |
+| `agents-issue-intake.yml` | Assignment-label and manual agent intake | No |
+| `agents-auto-pilot.yml` | End-to-end issue automation | No |
+| `agents-71-codex-belt-dispatcher.yml` | Selects queued Codex work | No |
+| `agents-72-codex-belt-worker-dispatch.yml` | Dispatches the callable worker | No |
+| `agents-80-pr-event-hub.yml` | Routes PR events | **YES** |
+| `agents-81-gate-followups.yml` | Routes Gate events and guarded delivery | **YES** |
+| `agents-keepalive-sweep.yml` | Re-evaluates stalled agent PRs | **YES** |
+| `agents-keepalive-loop-reporter.yml` | Reports keepalive loop completion | **YES** |
 | `agents-verifier.yml` | Post-merge verification | No |
-| `autofix.yml` | Auto-fixes lint/format issues | No |
-| `ci.yml` | Thin caller for Python CI | No |
-| `maint-sync-workflows.yml` | Local sync check (weekly) | Recommended |
+| `autofix.yml` | Applies bounded formatting and lint fixes | No |
+| `ci.yml` | Shared Python CI caller | No |
 
-- [ ] All workflow files present
-- [ ] Workflow files reference `stranske/Workflows@v1` (or a pinned tag/SHA)
+- [ ] The deployed workflow inventory matches the Workflows consumer template and manifest
+- [ ] The intake workflow has no draft-PR input or forwarding path
+- [ ] Automation PRs are created ready for review
+- [ ] Workflows template-sync and completeness validators pass for shared changes
 
 
 ### 4.1b Validate Workflow File Naming
 
-> **Critical**: Consumer repos must use the correct workflow file naming convention.
-> Old naming (without numbers) indicates incomplete migration.
-
-**Expected files** (correct naming):
-- `agents-63-issue-intake.yml` — Full workflow with ChatGPT sync (NOT the old thin caller)
-- `agents-70-orchestrator.yml` — Orchestrator with numbered naming
-
-**Deprecated or legacy files:**
-- ~~`agents-issue-intake.yml`~~ — Old thin caller, replaced by `agents-63-issue-intake.yml`
-- `agents-orchestrator.yml` — Legacy unnumbered naming; still valid and may coexist, but prefer `agents-70-orchestrator.yml`
-
-> **Why both orchestrator files may exist**: The `maint-68-sync-consumer-repos` workflow
-> uses a mapping syntax (`"agents-70-orchestrator.yml:agents-orchestrator.yml"`) that
-> syncs the source file to both names. This ensures repos using either convention
-> receive updates. New repos should use `agents-70-orchestrator.yml`; existing repos
-> with `agents-orchestrator.yml` continue to work.
+> **Critical**: do not infer the consumer roster from historical numbered
+> wrappers or copy snippets from old setup guides. The Workflows consumer
+> template and sync manifest are the sources of truth.
 
 **Validation checklist:**
-- [ ] No deprecated workflow files present
-- [ ] `agents-63-issue-intake.yml` exists (NOT `agents-issue-intake.yml`)
-- [ ] `agents-70-orchestrator.yml` exists (may coexist with `agents-orchestrator.yml`)
-- [ ] `maint-sync-workflows.yml` exists for local sync checks
 
-**To fix if using old naming:**
-```bash
-# Remove old thin caller workflow
-rm .github/workflows/agents-issue-intake.yml
+- [ ] `agents-issue-intake.yml` exists as the local front door
+- [ ] Auto-Pilot, the Agents 71/72 dispatch path, and 80-81 event routers match the template
+- [ ] The 72 worker and 73 conveyor are recorded as callable-only, not operator entry points
+- [ ] The retired consumer orchestrator wrapper is absent
+- [ ] No local bootstrap simulator or draft-PR control is present
 
-# Copy full workflow from Workflows repo
-curl -o .github/workflows/agents-63-issue-intake.yml \
-  https://raw.githubusercontent.com/stranske/Workflows/v1/.github/workflows/agents-63-issue-intake.yml
+When drift is detected, repair the source template in Workflows and use the
+managed sync path. Do not download individual workflow files into a consumer
+repository as an ad-hoc replacement for the manifest-driven delivery.
 
-# Copy orchestrator with numbered naming  
-curl -o .github/workflows/agents-70-orchestrator.yml \
-  https://raw.githubusercontent.com/stranske/Workflows/v1/templates/consumer-repo/.github/workflows/agents-orchestrator.yml
-
-# Optional: add a local sync-check workflow if your org maintains one.
-# If you already have a maintained local sync workflow in another repo, adapt this pattern:
-# curl -o .github/workflows/maint-sync-workflows.yml \
-#   https://raw.githubusercontent.com/<owner>/<repo>/<ref>/.github/workflows/maint-sync-workflows.yml
-```
-
-> **Lesson learned**: When writing workflow sync scripts that use `curl` to download
-> files, always verify both success AND that the file exists with content:
-> ```bash
-> # BAD - curl failure silently continues
-> curl -sfL "$URL" -o "$FILE" 2>/dev/null || continue
-> 
-> # GOOD - explicit failure tracking and file verification
-> download_failed=false
-> if ! curl -sfL "$URL" -o "$FILE" 2>/dev/null; then
->   download_failed=true
-> fi
-> if [ "$download_failed" = "true" ] || [ ! -s "$FILE" ]; then
->   echo "Download failed: $FILE"
->   continue
-> fi
-> ```
-> This pattern was added to consumer repo `maint-sync-workflows.yml` files after
-> silent failures masked sync issues.
-> **⚠️ CRITICAL: Fix reusable workflow references after copying!**
->
-> When copying workflow files, watch for local reusable-workflow references like:
->
-> ```yaml
-> uses: ./.github/workflows/reusable-agents-issue-bridge.yml
-> ```
->
-> This works in the Workflows repo but can break in consumer repos if the reusable workflow
-> is not present locally. Prefer a remote reference instead:
->
-> ```yaml
-> uses: stranske/Workflows/.github/workflows/reusable-agents-issue-bridge.yml@v1
-> ```
->
-> **Preferred**: copy from the consumer template in this repo (already wired for consumer usage):
->
-> ```bash
-> curl -o .github/workflows/agents-issue-intake.yml \
->   https://raw.githubusercontent.com/stranske/Workflows/v1/templates/consumer-repo/.github/workflows/agents-issue-intake.yml
-> ```
+The managed sync source already uses the correct pinned local or canonical
+remote reusable references for each consumer file. If a reference is wrong,
+repair it in the Workflows template and sync manifest, validate the source PR,
+and let the managed delivery update consumers. Do not download a single file or
+substitute a tag-based reference locally.
 
 ### 4.2 Autofix Versions Configuration
 
@@ -616,19 +584,14 @@ grep -E "ruff|mypy|black|isort" requirements*.txt pyproject.toml 2>/dev/null
 
 ### 4.3 Critical Workflow Configuration
 
-**In `agents-pr-meta.yml`:**
+**In `agents-81-gate-followups.yml`:**
 
-The `pr_number` input MUST use `fromJSON()` to convert the string output to a number:
+The active follow-up route must listen for Gate completion and accept an
+explicit manual PR-number retry. PR metadata and Gate follow-up must not be
+routed through a retired local PR-meta wrapper.
 
-```yaml
-# ❌ WRONG - will silently skip the job
-pr_number: ${{ needs.resolve_pr.outputs.pr_number }}
-
-# ✅ CORRECT - properly converts to number
-pr_number: ${{ fromJSON(needs.resolve_pr.outputs.pr_number) }}
-```
-
-- [ ] Verify `fromJSON()` wrapper is present in all `pr_number` inputs
+- [ ] Verify the `workflow_run` trigger names `Gate`
+- [ ] Verify `workflow_dispatch` requires `pr_number`
 
 **In `pr-00-gate.yml`:**
 
@@ -650,22 +613,9 @@ The Gate workflow MUST post a commit status for keepalive to detect when CI pass
 
 - [ ] Verify commit status step exists in Gate summary job
 
-**In `agents-pr-meta.yml` (workflow_run trigger):**
-
-The workflow MUST have a `workflow_run` trigger for Gate completion:
-
-```yaml
-on:
-  # ... other triggers ...
-  workflow_run:
-    workflows: ["Gate"]
-    types: [completed]
-```
-
-This handles the race condition where a human posts `@codex` before Gate finishes.
-
-- [ ] Verify `workflow_run` trigger is present
-- [ ] Verify `allow_replay: true` is passed to reusable workflow for Gate completion
+Agents 80 owns PR event routing; Agents 81 owns Gate completion, retries, and
+guarded delivery. Confirm both files are present and do not recreate a local
+PR-meta workflow.
 
 ---
 
@@ -696,9 +646,9 @@ These scripts MUST exist in `.github/scripts/`:
 
 | Script | Purpose | Required By |
 |--------|---------|-------------|
-| `decode_raw_input.py` | Decodes ChatGPT input | agents-63 chatgpt_sync |
-| `parse_chatgpt_topics.py` | Parses topics from input | agents-63 chatgpt_sync |
-| `fallback_split.py` | Fallback topic splitting | agents-63 chatgpt_sync |
+| `decode_raw_input.py` | Decodes connector topic input | Source-managed topic parser |
+| `parse_chatgpt_topics.py` | Parses conversations into issue topics | Source-managed topic parser |
+| `fallback_split.py` | Fallback topic splitting | Source-managed topic parser |
 
 - [ ] All 3 Python scripts present
 
@@ -844,37 +794,40 @@ tasks are complete or the iteration limit is reached.
 **Workflows involved**:
 | Workflow | Role |
 |----------|------|
-| `agents-pr-meta.yml` | Detects `@codex` comments, triggers keepalive |
-| `agents-orchestrator.yml` | Scheduled sweeps to find stalled PRs |
-| `agents-keepalive-loop.yml` | Executes keepalive iterations |
+| `agents-80-pr-event-hub.yml` | Routes active PR and review events |
+| `agents-81-gate-followups.yml` | Evaluates Gate completion and guarded delivery |
+| `agents-keepalive-sweep.yml` | Re-evaluates stalled ready-for-review agent PRs |
 
 **Key dependencies**:
 - `.github/codex/AGENT_INSTRUCTIONS.md` — Agent security boundaries
 - `.github/codex/prompts/keepalive_next_task.md` — Iteration prompt template
 - `Gate / gate` commit status — Keepalive waits for CI before proceeding
-- `ALLOWED_KEEPALIVE_LOGINS` variable — Who can trigger keepalive
 - `.gitignore` entries for `codex-prompt*.md`, `codex-output*.md`, `verifier-context.md`
 
 **Verification checklist**:
-- [ ] `agents-pr-meta.yml` exists with `issue_comment` and `workflow_run` triggers
-- [ ] `agents-orchestrator.yml` exists with `schedule` trigger
-- [ ] `agents-keepalive-loop.yml` exists
+- [ ] `agents-80-pr-event-hub.yml` exists with PR event triggers
+- [ ] `agents-81-gate-followups.yml` listens for Gate completion
+- [ ] Repository variable `USE_CONSOLIDATED_WORKFLOWS` is `true` so Agents 81
+      evaluates automatic Gate follow-ups (`workflow_dispatch` intentionally
+      bypasses this variable for manual recovery)
+- [ ] `agents-keepalive-sweep.yml` exists with a schedule trigger
 - [ ] `.github/codex/AGENT_INSTRUCTIONS.md` exists
 - [ ] `.github/codex/prompts/keepalive_next_task.md` exists
-- [ ] `ALLOWED_KEEPALIVE_LOGINS` variable is set in repo settings
 - [ ] `.gitignore` includes codex working files (prevents multi-PR conflicts)
 
 **How to test**:
-1. Create a PR from an issue with `agent:codex` label
-2. Post `@codex` comment on the PR
-3. Verify `agents-pr-meta.yml` workflow triggers
-4. Check workflow logs for keepalive evaluation
-5. If Gate passed, keepalive should dispatch to `agents-keepalive-loop.yml`
+1. Create a PR from an issue with both `agent:codex` and `agents:keepalive` labels
+2. Let Gate complete on the unchanged head
+3. Verify `agents-81-gate-followups.yml` evaluates that Gate run
+4. Check the Agents 81 summary for the exact-head follow-up disposition
+5. Use `agents-keepalive-sweep.yml` only for a stalled eligible PR
 
 **Troubleshooting**:
-- `pr_meta_comment` job skipped: Check `pr_number` uses `fromJSON()` wrapper
-- "keepalive disabled": Check `ALLOWED_KEEPALIVE_LOGINS` includes comment author
-- "gate-not-concluded": Gate hasn't finished; wait or check Gate workflow
+- "gate-not-concluded": Gate has not finished; wait or inspect the Gate workflow
+- "head changed": Restart the exact-head review and Gate window
+- Gate completes but no follow-up: Confirm `USE_CONSOLIDATED_WORKFLOWS` is
+  `true`; a false or missing value skips automatic Agents 81 evaluation, while
+  `workflow_dispatch` still permits a manual recovery run
 - Missing codex files: Add from `templates/consumer-repo/.github/codex/`
 
 ---
@@ -885,6 +838,7 @@ tasks are complete or the iteration limit is reached.
 when the `autofix` or `autofix:clean` label is added to a PR.
 
 **Workflows involved**:
+
 | Workflow | Role |
 |----------|------|
 | `autofix.yml` | Thin caller that triggers on label, delegates to reusable workflow |
@@ -918,7 +872,7 @@ when the `autofix` or `autofix:clean` label is added to a PR.
 ### 8.4 Issue Intake System
 
 **Purpose**: Automatically creates PRs from issues labeled with `agent:codex`,
-bootstrapping agent work with a linked branch and draft PR.
+bootstrapping agent work with a linked branch and ready-for-review PR.
 
 **Workflows involved**:
 | Workflow | Role |
@@ -944,7 +898,7 @@ bootstrapping agent work with a linked branch and draft PR.
 2. Add the `agent:codex` label
 3. Verify intake workflow runs
 4. Check that a branch `codex/issue-<number>` is created
-5. Verify a draft PR is opened linking to the issue
+5. Verify a ready-for-review PR is opened linking to the issue
 
 **Troubleshooting**:
 - Intake doesn't trigger: Check label is `agent:codex` (not `codex` or `agent-codex`)
@@ -987,27 +941,27 @@ creates follow-up issues for any unmet criteria.
 
 ---
 
-### 8.6 Orchestrator System
+### 8.6 Keepalive Recovery Sweep
 
-**Purpose**: Runs scheduled sweeps to find PRs that need keepalive attention,
-including watchdog checks for stalled automation.
+**Purpose**: Re-evaluates stalled ready-for-review agent PRs and dispatches the
+active Agents 81 follow-up route when recovery is due.
 
 **Workflows involved**:
 | Workflow | Role |
 |----------|------|
-| `agents-orchestrator.yml` | Scheduled (every 30 min) keepalive sweeps |
+| `agents-keepalive-sweep.yml` | Hourly stalled-PR recovery sweep |
 
 **Key dependencies**:
 - Scheduled cron trigger
 - `SERVICE_BOT_PAT` for cross-repo operations
 
 **Verification checklist**:
-- [ ] `agents-orchestrator.yml` exists in `.github/workflows/`
+- [ ] `agents-keepalive-sweep.yml` exists in `.github/workflows/`
 - [ ] Workflow has `schedule` trigger with cron expression
 - [ ] `SERVICE_BOT_PAT` secret is configured
 
 **How to test**:
-1. Manually dispatch the orchestrator workflow
+1. Manually dispatch the keepalive sweep
 2. Check workflow logs for PR sweep results
 3. Verify it identifies PRs needing keepalive
 
@@ -1019,37 +973,29 @@ including watchdog checks for stalled automation.
 
 ### 8.7 System Dependencies Diagram
 
-```
-┌─────────────────┐
-│   Issue Intake  │  Creates branch + PR from labeled issue
-└────────┬────────┘
-         │
-         ▼
-┌─────────────────┐
-│      Gate       │  Runs CI, posts commit status
-└────────┬────────┘
-         │
-         ▼
-┌─────────────────┐
-│   PR Meta       │  Detects @codex, checks Gate status
-└────────┬────────┘
-         │
-         ▼
-┌─────────────────┐
-│ Keepalive Loop  │  Runs agent iterations
-└────────┬────────┘
-         │
-         ├──────────────────────┐
-         ▼                      ▼
-┌─────────────────┐    ┌─────────────────┐
-│    Autofix      │    │  Orchestrator   │
-│  (on demand)    │    │  (scheduled)    │
-└─────────────────┘    └─────────────────┘
-         │
-         ▼
-┌─────────────────┐
-│    Verifier     │  Post-merge validation
-└─────────────────┘
+```text
+┌─────────────────────┐
+│ Issue Intake /       │  Creates or refreshes a ready PR
+│ Agents Auto-Pilot   │
+└──────────┬──────────┘
+           │
+           ▼
+┌─────────────────────┐
+│ Gate                │  Runs CI on the exact PR head
+└──────────┬──────────┘
+           │
+           ▼
+┌─────────────────────┐
+│ Agents 81           │  Evaluates Gate and guarded delivery
+└──────────┬──────────┘
+           │
+           ▼
+┌─────────────────────┐
+│ Verifier            │  Validates acceptance after merge
+└─────────────────────┘
+
+Keepalive Sweep re-enters the Agents 81 evaluation for stalled eligible PRs.
+Autofix can repair a labeled PR before Gate is evaluated again.
 ```
 
 ---
@@ -1074,13 +1020,13 @@ including watchdog checks for stalled automation.
 
 ### 9.2 Test Keepalive (After Gate Works)
 
-1. Create an issue with `agent:codex` label
-2. Wait for agents-63 to create a bootstrap PR
-3. Post `@codex` comment on the PR
+1. Create an issue with both `agent:codex` and `agents:keepalive` labels
+2. Wait for Agents Issue Intake to create a ready-for-review PR
+3. Let Gate complete on the current head
 4. Verify:
-   - [ ] agents-pr-meta workflow triggers
-   - [ ] Keepalive detection runs
-   - [ ] agents:keepalive label is added (if conditions met)
+   - [ ] Agents 81 Gate Followups evaluates the completed Gate run
+   - [ ] The exact-head review and check disposition is recorded
+   - [ ] Keepalive Sweep can re-evaluate the PR if it later stalls
 
 **Common Non-Issues to Expect:**
 
@@ -1101,10 +1047,10 @@ including watchdog checks for stalled automation.
 
 | Symptom | Cause | Fix |
 |---------|-------|-----|
-| `pr_meta_comment` job skipped | `pr_number` type mismatch | Use `fromJSON()` wrapper |
 | "Module not found" errors | Missing JS scripts | Add scripts from template |
-| Gate completes but no keepalive | Missing `workflow_run` trigger | Add trigger for Gate |
-| Keepalive defers with `gate-not-concluded` | Gate still running | Wait for Gate, or check `allow_replay` |
+| Gate completes but no follow-up | `USE_CONSOLIDATED_WORKFLOWS` is not `true`, so Agents 81 skipped the automatic Gate run | Set the repository variable to `true`, then inspect its `workflow_run` trigger and summary; `workflow_dispatch` bypasses the variable for manual recovery |
+| Follow-up reports `head changed` | The PR moved after Gate ran | Restart review and Gate on the new exact head |
+| Follow-up reports `gate-not-concluded` | Gate is still running | Wait for the exact-head Gate conclusion |
 
 ### Debug Logging
 
@@ -1155,9 +1101,16 @@ inputs:
 ├── templates/
 │   └── keepalive-instruction.md
 └── workflows/
-    ├── agents-63-issue-intake.yml
-    ├── agents-70-orchestrator.yml
-    ├── agents-pr-meta.yml
+    ├── agents-issue-intake.yml
+    ├── agents-auto-pilot.yml
+    ├── agents-71-codex-belt-dispatcher.yml
+    ├── agents-72-codex-belt-worker-dispatch.yml
+    ├── agents-72-codex-belt-worker.yml
+    ├── agents-73-codex-belt-conveyor.yml
+    ├── agents-80-pr-event-hub.yml
+    ├── agents-81-gate-followups.yml
+    ├── agents-keepalive-sweep.yml
+    ├── agents-keepalive-loop-reporter.yml
     ├── autofix.yml
     ├── ci.yml
     └── pr-00-gate.yml
@@ -1202,31 +1155,26 @@ versions change, add your repo to these three workflows:
 
 ### 10.2 Label Documentation Sync
 
-2. Add your repo to `DEFAULT_CONSUMER_REPOS` in:
-   - File: `.github/workflows/maint-65-sync-label-docs.yml`
-   - Purpose: Syncs `docs/LABELS.md` to keep label documentation consistent
+2. No separate label-doc repository list is required. `maint-65-sync-label-docs.yml`
+   uses the shared registered-repository helper and copies the consumer-specific
+   `templates/consumer-repo/docs/LABELS.md` source to consumer `docs/LABELS.md`.
 
-   ```yaml
-   DEFAULT_CONSUMER_REPOS: |
-     stranske/Travel-Plan-Permission
-     stranske/your-repo  # Add your repo here
-   ```
+- [ ] Confirmed the repo appears in the shared registered-repository output
+- [ ] Confirmed `templates/consumer-repo/docs/LABELS.md` is the label-doc source
 
-- [ ] Added to `maint-65-sync-label-docs.yml`
+### 10.3 Dev Tool Version Sync — DERIVED, no action needed
 
-### 10.3 Dev Tool Version Sync
+`maint-52-sync-dev-versions.yml` no longer keeps its own repo list. It checks out
+`maint-68-sync-consumer-repos.yml` plus `scripts/list_registered_consumer_repos.py`
+and derives the set from §10.1 (see maint-52 lines ~85-86). The same is true of
+`maint-65-sync-label-docs.yml` (§10.2).
 
-3. Add your repo to `REGISTERED_CONSUMER_REPOS` in:
-   - File: `.github/workflows/maint-52-sync-dev-versions.yml`
-   - Purpose: Syncs `autofix-versions.env` (ruff, black, mypy versions)
+**So the "THREE workflows" framing above is out of date: there is ONE list
+(§10.1) and two derived consumers.** Corrected 2026-08-21 while onboarding
+`stranske/Orchestrator`, where following the old instruction would have meant
+editing a `REGISTERED_CONSUMER_REPOS` block that no longer exists in maint-52.
 
-   ```yaml
-   REGISTERED_CONSUMER_REPOS: |
-     stranske/Travel-Plan-Permission
-     stranske/your-repo  # Add your repo here
-   ```
-
-- [ ] Added to `maint-52-sync-dev-versions.yml`
+- [ ] Confirmed `maint-52` derives from §10.1 (no separate edit required)
 
 ### 10.4 Verify Sync Works
 
@@ -1256,6 +1204,125 @@ gh workflow run "Maint 52 Sync Dev Versions" \
 
 **Note**: Repos with custom Gate workflows should still be registered—only
 the thin caller workflows are synced, not custom implementations.
+
+---
+
+## Phase 11: Coupled Inventories (REQUIRED — the tests enforce these)
+
+> Added 2026-08-21 after onboarding `stranske/Orchestrator` as consumer 14.
+> Registering in §10.1 alone left **six failing tests**. The consumer list is
+> duplicated across several places that must move together, and none of them was
+> documented. The tests caught every one — this phase just writes down what they
+> already know, so the next onboarding is not a debugging exercise.
+
+**Do §10.1 first, then work this list, then run §11.6 to confirm.**
+
+### 11.1 Regenerate the Renovate ownership preset
+
+`renovate-presets/consumer-managed-paths.json` is GENERATED from the sync manifest,
+so a new consumer leaves it stale. A stale preset lets the consumer's own Renovate
+open PRs against maint-68-owned paths, which the next sync silently discards
+(precedent: `Inv-Man-Intake#838`, `Manager-Database#1347`, both closed unmerged).
+
+```bash
+python3 scripts/generate_consumer_renovate_ownership.py        # writes the preset
+python3 scripts/generate_consumer_renovate_ownership.py --check # CI-style drift check
+```
+
+- [ ] Preset regenerated and committed
+
+*Note:* running the Python suite writes to `input.txt` and `topics.json` at the repo
+root as a test side-effect. Restore them (`git checkout -- input.txt topics.json`)
+before committing, or they will ride along in your PR.
+
+### 11.2 LangSmith fleet: add to the managed set
+
+`scripts/langsmith_fleet.py` holds `MANAGED_CONSUMER_REPOS`, a hardcoded second copy
+of §10.1's list. `test_langsmith_fleet.py` asserts the two are identical, so it must
+be updated in lockstep.
+
+- [ ] Added to `MANAGED_CONSUMER_REPOS`
+
+### 11.3 LangSmith fleet: classify as registry OR allowlist
+
+Every managed consumer must appear in exactly one of:
+
+* `config/langsmith_fleet_registry.json` — the repo emits traces, and
+* `config/langsmith_fleet_allowlist.json` — the repo is explicitly not applicable.
+
+The allowlist is **schema-validated** and every entry needs all four fields:
+`repo`, `status` (must be `not-applicable`), `reason`, and
+`registry_activation_condition` (what would later move it into the registry).
+Omitting `registry_activation_condition` fails the whole allowlist load and breaks
+~16 tests at once, with an error that names the index rather than the field you
+were thinking about.
+
+- [ ] Classified in exactly one of registry / allowlist, with all four fields if allowlisted
+
+### 11.4 Count assertions vs membership assertions
+
+Adding a consumer moves several hardcoded numbers. When you hit one, decide which
+kind it is — the distinction matters and both appear in this repo:
+
+* **Incidental counts** — "how many are allowlisted right now". DERIVE these from the
+  config so the next consumer does not break them again. Sites already converted:
+  `test_langsmith_fleet.py`, `test_metrics_dashboard_generator.py` (x3),
+  `test_langsmith_fleet_conformance.py`, and the `status_rows` total.
+* **Deliberate membership** — the exact allowlist SET in
+  `test_langsmith_metrics_dashboard.py` stays a literal on purpose. An allowlist is an
+  exemption from observability; extending it should require a visible test change
+  rather than passing silently.
+
+- [ ] Counts derived, membership pinned
+
+### 11.5 Two files that are easy to edit in the wrong place
+
+Both were got wrong during the Orchestrator onboarding and caught in review:
+
+* **Routing labels go in `.github/labels-core.yml`**, which Maint 69 syncs — not
+  `.github/labels.yml`. Labels added to the latter never reach consumers. This is
+  also why `refactor`, `cross-repo`, `epic`, `runtime-ac`, `testgen` and
+  `tracker:durable` existed on 12 repos by hand but on no newly-onboarded one:
+  applying `labels.yml` gave a fresh consumer 41 labels and **none** that
+  `backlog.classify()` routes on.
+* **The agent-runner contract to edit is the ROOT `docs/contracts/agent-runner-output.md`**,
+  which the sync manifest selects — not `templates/consumer-repo/docs/contracts/...`.
+  Editing only the template copy leaves the change inert.
+
+- [ ] Labels in `labels-core.yml`; contract edited at the manifest-selected path
+
+### 11.6 Verify — run the tests, they are the real checklist
+
+```bash
+python3 -m pytest -q tests/ -k "langsmith or metrics_dashboard or label or renovate or dependency_bot or consumer or manifest"
+```
+
+Expect zero failures. This is the only reliable way to find a coupled inventory
+that has drifted; the cascade is not visible by reading.
+
+- [ ] Suite green for the selection above
+
+### 11.7 When a consumer must keep its own context file
+
+`CLAUDE.md` is overwrite-by-default: only 5 of 227 manifest entries are
+`create_only`. If a repo's `CLAUDE.md` or `AGENTS.md` is load-bearing for that repo
+(for example a tool whose agent rules ARE its safety net), add a `skip_repos` entry
+with a reason in `.github/sync-manifest.yml` rather than letting the template
+overwrite it. Precedent: `Trend_Model_Project` skips `AGENTS.md`;
+`Orchestrator` skips `CLAUDE.md`.
+
+- [ ] `skip_repos` added if the repo owns its context file
+
+### 11.8 Registration is not consent to be a SUBJECT
+
+Being registered makes a repo a sync **target**. Some Workflows-side machinery also
+treats registered consumers as **subjects** — `consumer_sync_artifact_ingest`
+derives its drift cohort from `REGISTERED_CONSUMER_REPOS`. A repo that HOSTS such a
+detector must be excluded explicitly, or it becomes a subject of its own detector
+and can feed its own promotion gate. Do not rely on it being absent from some other
+registry; that protection disappears the moment the repo is added there.
+
+- [ ] Subject-vs-target considered for any repo that hosts fleet tooling
 
 ---
 

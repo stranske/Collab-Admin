@@ -17,6 +17,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import uuid
 from collections.abc import Iterator
 from pathlib import Path
 from typing import Any, Protocol, TypeGuard
@@ -25,10 +26,14 @@ from scripts.state_fingerprint import GitHubApi, _github_context
 
 MARKER_VERSION = "v1"
 MARKER_PREFIX = "runner-dispatch"
+COMPLETION_MARKER_PREFIX = "runner-completion"
+RESERVATION_MARKER_PREFIX = "runner-reservation"
 PROVIDERS = {"autofix", "claude", "codex", "cursor", "gemini"}
 # cursor and gemini use the same plain-text (non-JSONL) prompt/parse path as claude.
 PROMPT_PROVIDERS = {"claude", "codex", "cursor", "gemini"}
 TERMINAL_STATUSES = {"completed", "error"}
+TASK_PROGRESS_SCHEMA = 1
+TASK_PROGRESS_FINGERPRINT_RE = re.compile(r"^[0-9a-f]{64}$")
 PENDING_STALE_AFTER_SECONDS = 30 * 60
 # A runner can exit 0 having produced nothing — the codex sandbox failing to initialize
 # (`bwrap: loopback: Failed RTM_NEWADDR`) reports itself as a SUCCESSFUL run with no commit.
@@ -252,6 +257,62 @@ def _resolve_reference_checkout_path(workspace_path: Path, checkout_path: str | 
 def _runner_key(pr_number: int, head_sha: str, provider: str) -> str:
     payload = f"{provider}:{pr_number}:{head_sha}"
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+def _normalize_task_progress_snapshot(value: object) -> dict[str, Any] | None:
+    """Return a validated checklist snapshot, or None when progress is unmeasurable."""
+    if isinstance(value, str):
+        if not value.strip():
+            return None
+        try:
+            value = json.loads(value)
+        except json.JSONDecodeError:
+            return None
+    if not isinstance(value, dict) or value.get("schema") != TASK_PROGRESS_SCHEMA:
+        return None
+    total = value.get("total")
+    completed = value.get("completed")
+    fingerprint = value.get("fingerprint")
+    if (
+        not isinstance(total, int)
+        or isinstance(total, bool)
+        or not isinstance(completed, int)
+        or isinstance(completed, bool)
+        or total < 0
+        or completed < 0
+        or completed > total
+        or not isinstance(fingerprint, str)
+        or not TASK_PROGRESS_FINGERPRINT_RE.fullmatch(fingerprint)
+    ):
+        return None
+    return {
+        "schema": TASK_PROGRESS_SCHEMA,
+        "total": total,
+        "completed": completed,
+        "fingerprint": fingerprint,
+    }
+
+
+def _task_progress_before_from_record(record: dict[str, Any]) -> dict[str, Any] | None:
+    return _normalize_task_progress_snapshot(
+        {
+            "schema": record.get("task_progress_schema"),
+            "total": record.get("tasks_total_before"),
+            "completed": record.get("tasks_completed_before"),
+            "fingerprint": record.get("task_set_fingerprint_before"),
+        }
+    )
+
+
+def _task_progress_record_fields(snapshot: dict[str, Any] | None, *, suffix: str) -> dict[str, Any]:
+    if snapshot is None:
+        return {}
+    return {
+        "task_progress_schema": TASK_PROGRESS_SCHEMA,
+        f"tasks_total_{suffix}": snapshot["total"],
+        f"tasks_completed_{suffix}": snapshot["completed"],
+        f"task_set_fingerprint_{suffix}": snapshot["fingerprint"],
+    }
 
 
 def _read_text(path: Path) -> str:
@@ -749,20 +810,24 @@ def parse_runner_output(provider: str, raw_output: str) -> RunnerResult:
     )
 
 
-def _marker_re(pr_number: int, provider: str) -> re.Pattern[str]:
+def _marker_re(
+    pr_number: int, provider: str, *, marker_prefix: str = MARKER_PREFIX
+) -> re.Pattern[str]:
     return re.compile(
-        rf"<!--\s*{MARKER_PREFIX}:{provider}:{pr_number}:{MARKER_VERSION}\s+([\s\S]*?)\s*-->",
+        rf"<!--\s*{marker_prefix}:{provider}:{pr_number}:{MARKER_VERSION}\s+([\s\S]*?)\s*-->",
         re.DOTALL,
     )
 
 
-def _build_marker(pr_number: int, provider: str, record: dict[str, Any]) -> str:
+def _build_marker(
+    pr_number: int, provider: str, record: dict[str, Any], *, marker_prefix: str = MARKER_PREFIX
+) -> str:
     payload = base64.b64encode(
         json.dumps(record, sort_keys=True, separators=(",", ":")).encode("utf-8")
     ).decode("ascii")
     return (
         f"Runner dispatch state for {provider} on PR #{pr_number}. Do not edit.\n\n"
-        f"<!-- {MARKER_PREFIX}:{provider}:{pr_number}:{MARKER_VERSION} base64:{payload} -->"
+        f"<!-- {marker_prefix}:{provider}:{pr_number}:{MARKER_VERSION} base64:{payload} -->"
     )
 
 
@@ -797,11 +862,13 @@ def _compact_runner_result_payload(result_payload: dict[str, Any]) -> dict[str, 
     return compact
 
 
-def _extract_record(value: str | None, pr_number: int, provider: str) -> dict[str, Any] | None:
+def _extract_record(
+    value: str | None, pr_number: int, provider: str, *, marker_prefix: str = MARKER_PREFIX
+) -> dict[str, Any] | None:
     if not value:
         return None
     candidates: list[str] = []
-    match = _marker_re(pr_number, provider).search(value)
+    match = _marker_re(pr_number, provider, marker_prefix=marker_prefix).search(value)
     if match:
         candidates.append(match.group(1))
     stripped = value.strip()
@@ -815,6 +882,15 @@ def _extract_record(value: str | None, pr_number: int, provider: str) -> dict[st
         if isinstance(payload, dict) and payload.get("provider") == provider:
             return payload
     return None
+
+
+def _reservation_identity(record: dict[str, Any]) -> str:
+    identity = record.get("reservation_id")
+    if isinstance(identity, str) and identity:
+        return identity
+    # Legacy reservations remain readable without mutating their marker to migrate.
+    payload = json.dumps(record, sort_keys=True, separators=(",", ":"))
+    return "legacy:" + hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
 def _variable_name(pr_number: int, provider: str) -> str:
@@ -846,22 +922,117 @@ class PrCommentRunnerStorage:
         return cls(GitHubApi(repo, token))
 
     def _iter_comments(self, pr_number: int, *, direction: str = "asc") -> Iterator[dict[str, Any]]:
-        page = 1
-        direction = "desc" if direction.strip().lower() == "desc" else "asc"
+        # Offset pages can shift between calls if an ordinary comment is deleted,
+        # concealing an already-written reservation. Cursor pagination walks a
+        # stable boundary and reads only recent pages on a long-lived PR.
+        owner, repo = self.api.repo.split("/", 1)
+        descending = direction.strip().lower() == "desc"
+        window = "last:100,before:$cursor" if descending else "first:100,after:$cursor"
+        has_more = "hasPreviousPage" if descending else "hasNextPage"
+        next_cursor = "startCursor" if descending else "endCursor"
+        query = (
+            "query($owner:String!,$repo:String!,$pr:Int!,$cursor:String){"
+            "repository(owner:$owner,name:$repo){pullRequest(number:$pr){"
+            f"comments({window}){{nodes{{fullDatabaseId body author{{login __typename}} authorAssociation}}"
+            "pageInfo{hasPreviousPage startCursor hasNextPage endCursor}}}}}"
+        )
+        legacy_query = query.replace("fullDatabaseId ", "databaseId ")
+        cursor: str | None = None
+        seen: set[str] = set()
+        boundary_id: int | None = None
         while True:
-            batch = self.api.request(
-                "GET",
-                f"/repos/{self.api.repo}/issues/{pr_number}/comments"
-                f"?per_page=100&sort=created&direction={direction}&page={page}",
+            response = self.api.request(
+                "POST",
+                "/graphql",
+                {
+                    "query": query,
+                    "variables": {"owner": owner, "repo": repo, "pr": pr_number, "cursor": cursor},
+                },
             )
-            if not isinstance(batch, list):
-                raise RuntimeError(
-                    f"Expected list response from GitHub API comments page for PR {pr_number}"
+            if isinstance(response, dict) and response.get("errors") and query != legacy_query:
+                errors = response["errors"]
+                unsupported_full_id = (
+                    isinstance(errors, list)
+                    and bool(errors)
+                    and all(
+                        isinstance(error, dict)
+                        and "fullDatabaseId" in str(error.get("message") or "")
+                        and any(
+                            phrase in str(error.get("message") or "").lower()
+                            for phrase in ("doesn't exist", "cannot query field", "unknown field")
+                        )
+                        for error in errors
+                    )
                 )
-            yield from batch
-            if len(batch) < 100:
-                break
-            page += 1
+                if unsupported_full_id:
+                    query = legacy_query
+                    continue
+            if not isinstance(response, dict) or response.get("errors"):
+                raise RuntimeError(f"Cannot read runner comments for PR {pr_number}: GraphQL error")
+            try:
+                connection = response["data"]["repository"]["pullRequest"]["comments"]
+                nodes = connection["nodes"]
+                page_info = connection["pageInfo"]
+            except (KeyError, TypeError) as exc:
+                raise RuntimeError(f"Missing runner comments for PR {pr_number}") from exc
+            if not isinstance(nodes, list) or not isinstance(page_info, dict):
+                raise RuntimeError(f"Invalid runner comments for PR {pr_number}")
+            ids: list[int] = []
+            for node in nodes:
+                if not isinstance(node, dict):
+                    raise RuntimeError(f"Unstable runner comment cursor for PR {pr_number}")
+                raw_id = node.get("fullDatabaseId")
+                if raw_id is None:
+                    raw_id = node.get("databaseId")
+                if isinstance(raw_id, bool) or not (
+                    isinstance(raw_id, int)
+                    and raw_id > 0
+                    or isinstance(raw_id, str)
+                    and raw_id.isascii()
+                    and raw_id.isdecimal()
+                    and int(raw_id) > 0
+                ):
+                    raise RuntimeError(f"Unstable runner comment cursor for PR {pr_number}")
+                ids.append(int(raw_id))
+            if (
+                ids != sorted(set(ids))
+                or (
+                    boundary_id is not None
+                    and ids
+                    and (ids[-1] >= boundary_id if descending else ids[0] <= boundary_id)
+                )
+                or not isinstance(page_info.get(has_more), bool)
+            ):
+                raise RuntimeError(f"Unstable runner comment cursor for PR {pr_number}")
+            if ids:
+                boundary_id = ids[0] if descending else ids[-1]
+            ordered_nodes = (
+                zip(reversed(nodes), reversed(ids), strict=True)
+                if descending
+                else zip(nodes, ids, strict=True)
+            )
+            for node, comment_id in ordered_nodes:
+                author = node.get("author")
+                login = author.get("login") if isinstance(author, dict) else None
+                if (
+                    isinstance(author, dict)
+                    and author.get("__typename") == "Bot"
+                    and login == "github-actions"
+                ):
+                    login = "github-actions[bot]"
+                yield {
+                    "id": comment_id,
+                    "body": node.get("body"),
+                    "user": {"login": login} if isinstance(author, dict) else None,
+                    "author_association": node.get("authorAssociation"),
+                }
+            if not page_info.get(has_more):
+                return
+            following = page_info.get(next_cursor)
+            if not nodes or not isinstance(following, str) or not following or following in seen:
+                raise RuntimeError(f"Unstable runner comment cursor for PR {pr_number}")
+            seen.add(following)
+            cursor = following
 
     def _find_comment(self, pr_number: int, provider: str) -> dict[str, Any] | None:
         pattern = _marker_re(pr_number, provider)
@@ -874,22 +1045,123 @@ class PrCommentRunnerStorage:
         return None
 
     def read_record(self, pr_number: int, provider: str) -> dict[str, Any] | None:
-        comment = self._find_comment(pr_number, provider)
-        if not comment:
+        # Walk newest to oldest. All receipts for an immutable reservation are
+        # newer than it, so stop at the latest one instead of reading old history.
+        latest: tuple[int, dict[str, Any] | None] = (-1, None)
+        legacy: tuple[int, dict[str, Any] | None] = (-1, None)
+        receipts: dict[str, tuple[int, dict[str, Any]]] = {}
+        for comment in self._iter_comments(pr_number, direction="desc"):
+            if not _is_trusted_marker_comment(comment):
+                continue
+            body = comment.get("body")
+            if not isinstance(body, str):
+                continue
+            comment_id = int(comment.get("id") or 0)
+            if _marker_re(pr_number, provider, marker_prefix=RESERVATION_MARKER_PREFIX).search(
+                body
+            ):
+                if comment_id > latest[0]:
+                    latest = (
+                        comment_id,
+                        _extract_record(
+                            body, pr_number, provider, marker_prefix=RESERVATION_MARKER_PREFIX
+                        ),
+                    )
+                break
+            if _marker_re(pr_number, provider).search(body):
+                if comment_id > legacy[0]:
+                    legacy = (comment_id, _extract_record(body, pr_number, provider))
+                continue
+            if not _marker_re(pr_number, provider, marker_prefix=COMPLETION_MARKER_PREFIX).search(
+                body
+            ):
+                continue
+            receipt = _extract_record(
+                body, pr_number, provider, marker_prefix=COMPLETION_MARKER_PREFIX
+            )
+            if not receipt or receipt.get("schema") != "runner-completion-receipt/v1":
+                continue
+            identity = receipt.get("reservation_id")
+            record = receipt.get("record")
+            if (
+                not isinstance(identity, str)
+                or not isinstance(record, dict)
+                or record.get("provider") != provider
+                or record.get("pr_number") != pr_number
+                or record.get("status") not in TERMINAL_STATUSES
+                or record.get("reservation_id") != identity
+            ):
+                continue
+            if comment_id > receipts.get(identity, (-1, {}))[0]:
+                receipts[identity] = (comment_id, record)
+        # New reservations have their own immutable marker. A late legacy client
+        # can still PATCH/POST runner-dispatch, but cannot replace this authority.
+        reservation = latest[1] if latest[0] >= 0 else legacy[1]
+        if latest[0] >= 0 and (
+            reservation is None
+            or reservation.get("pr_number") != pr_number
+            or not isinstance(reservation.get("reservation_id"), str)
+            or not reservation.get("reservation_id")
+        ):
+            raise RuntimeError("Invalid authoritative runner reservation")
+        if reservation is None:
             return None
-        body = comment.get("body")
-        return _extract_record(body if isinstance(body, str) else None, pr_number, provider)
+        matching_receipt = receipts.get(_reservation_identity(reservation))
+        return matching_receipt[1] if matching_receipt else reservation
+
+    def write_completion(self, pr_number: int, provider: str, record: dict[str, Any]) -> None:
+        # A completion racing a newer reservation can leave evidence for its old
+        # attempt, but cannot overwrite that newer pending owner.
+        receipt = {
+            "schema": "runner-completion-receipt/v1",
+            "provider": provider,
+            "reservation_id": record["reservation_id"],
+            "record": record,
+        }
+        body = _build_marker(pr_number, provider, receipt, marker_prefix=COMPLETION_MARKER_PREFIX)
+        # Retry the same attempt in-place. This bounds receipt growth without
+        # touching a newer reservation or losing the original receipt identity.
+        for comment in self._iter_comments(pr_number, direction="desc"):
+            if not _is_trusted_marker_comment(comment):
+                continue
+            comment_body = comment.get("body")
+            if not isinstance(comment_body, str):
+                continue
+            if _marker_re(pr_number, provider, marker_prefix=RESERVATION_MARKER_PREFIX).search(
+                comment_body
+            ):
+                break
+            if not _marker_re(pr_number, provider, marker_prefix=COMPLETION_MARKER_PREFIX).search(
+                comment_body
+            ):
+                continue
+            existing = _extract_record(
+                comment_body,
+                pr_number,
+                provider,
+                marker_prefix=COMPLETION_MARKER_PREFIX,
+            )
+            if (
+                existing
+                and existing.get("schema") == "runner-completion-receipt/v1"
+                and existing.get("reservation_id") == record["reservation_id"]
+            ):
+                if existing == receipt:
+                    return
+                self.api.request(
+                    "PATCH",
+                    f"/repos/{self.api.repo}/issues/comments/{comment['id']}",
+                    {"body": body},
+                )
+                return
+        self.api.request(
+            "POST",
+            f"/repos/{self.api.repo}/issues/{pr_number}/comments",
+            {"body": body},
+        )
 
     def write_record(self, pr_number: int, provider: str, record: dict[str, Any]) -> None:
-        body = _build_marker(pr_number, provider, record)
-        existing = self._find_comment(pr_number, provider)
-        if existing and existing.get("id"):
-            self.api.request(
-                "PATCH",
-                f"/repos/{self.api.repo}/issues/comments/{existing['id']}",
-                {"body": body},
-            )
-            return
+        body = _build_marker(pr_number, provider, record, marker_prefix=RESERVATION_MARKER_PREFIX)
         self.api.request(
             "POST",
             f"/repos/{self.api.repo}/issues/{pr_number}/comments",
@@ -1066,6 +1338,36 @@ def _unproductive_completion_count(prior: dict[str, Any] | None) -> int:
         return 0
 
 
+def _completion_needs_continuation(prior: dict[str, Any] | None) -> bool:
+    if not prior:
+        return False
+    if prior.get("completion_incomplete") is True:
+        return True
+    # Recover already-persisted partial observations from before this field existed.
+    total = prior.get("tasks_total_after")
+    completed = prior.get("tasks_completed_after")
+    return bool(
+        prior.get("observed_head_sha") == prior.get("head_sha")
+        and isinstance(total, int)
+        and not isinstance(total, bool)
+        and total > 0
+        and isinstance(completed, int)
+        and not isinstance(completed, bool)
+        and completed < total
+    )
+
+
+def _continuation_completion_count(prior: dict[str, Any] | None) -> int:
+    if not prior:
+        return 0
+    try:
+        return max(
+            0, int(prior.get("continuation_completions", _unproductive_completion_count(prior)))
+        )
+    except (TypeError, ValueError):
+        return _unproductive_completion_count(prior)
+
+
 def _workflow_attempt_id() -> str:
     """Identify the reserving workflow attempt across its jobs, not just the PR head."""
     repository = os.environ.get("GITHUB_REPOSITORY", "")
@@ -1096,6 +1398,7 @@ def _reserve_dispatch(
     prior: dict[str, Any] | None,
     *,
     reason: str,
+    task_progress_before: object = None,
 ) -> DebounceDecision:
     """Write the pending reservation for a granted dispatch and describe the decision."""
     record = {
@@ -1105,13 +1408,25 @@ def _reserve_dispatch(
         "key": key,
         "status": "pending",
         "started_at": _utc_now(),
+        "reservation_id": uuid.uuid4().hex,
     }
     attempt_id = _workflow_attempt_id()
     if attempt_id:
         record["workflow_attempt_id"] = attempt_id
+    record.update(
+        _task_progress_record_fields(
+            _normalize_task_progress_snapshot(task_progress_before), suffix="before"
+        )
+    )
     # Carry the unproductive tally across the retry so the allowance is bounded: it is the only
     # thing that makes "retry an unproductive completion" terminate instead of cycling forever.
     unproductive = _unproductive_completion_count(prior)
+    continuation_count = _continuation_completion_count(prior)
+    if prior and prior.get("head_sha") == head_sha:
+        if continuation_count:
+            record["continuation_completions"] = continuation_count
+        if _completion_needs_continuation(prior):
+            record["completion_incomplete"] = True
     if unproductive and prior and prior.get("head_sha") == head_sha:
         record["unproductive_completions"] = unproductive
         if _completion_was_unproductive(prior):
@@ -1125,7 +1440,15 @@ def _reserve_dispatch(
         if not isinstance(storage, FallbackRunnerStorage):
             raise
         _log_storage_failure("write", exc, phase="reservation")
-        return _unavailable_dispatch(key, prior)
+        # A POST can commit before the response is lost. Grant only if the
+        # primary now contains this exact reservation, never a different owner.
+        try:
+            persisted = reservation_storage.read_record(pr_number, provider)
+        except Exception as read_exc:
+            _log_storage_failure("read", read_exc, phase="reservation-recheck")
+            return _unavailable_dispatch(key, prior)
+        if persisted != record:
+            return _unavailable_dispatch(key, prior)
     return DebounceDecision(
         True,
         reason,
@@ -1142,6 +1465,7 @@ def should_dispatch(
     storage: RunnerDispatchStorage | None = None,
     *,
     authority_challenge: bool = False,
+    task_progress_before: object = None,
 ) -> DebounceDecision:
     """Reserve dispatch unless the same PR/head SHA completed or is actively pending.
 
@@ -1178,7 +1502,7 @@ def should_dispatch(
             raise
         _log_storage_failure("read", exc, phase="reservation")
         return _unavailable_dispatch(key)
-    unproductive_completions = _unproductive_completion_count(prior)
+    continuation_completions = _continuation_completion_count(prior)
 
     if authority_challenge:
         # The validation above guarantees this invariant at runtime. Repeat the
@@ -1237,6 +1561,7 @@ def should_dispatch(
             key,
             prior,
             reason="due-authority-challenge",
+            task_progress_before=task_progress_before,
         )
         if not decision.should_dispatch:
             # A write can time out after the primary store has persisted it.  Never refund the
@@ -1280,8 +1605,18 @@ def should_dispatch(
 
     if prior and prior.get("head_sha") == head_sha:
         status = str(prior.get("status") or "")
-        if status == "completed" and _completion_was_unproductive(prior):
-            if unproductive_completions <= UNPRODUCTIVE_COMPLETION_RETRY_LIMIT:
+        if status == "completed" and (
+            _completion_was_unproductive(prior) or _completion_needs_continuation(prior)
+        ):
+            incomplete = _completion_needs_continuation(prior) and not _completion_was_unproductive(
+                prior
+            )
+            retry_count = (
+                continuation_completions
+                if incomplete
+                else max(continuation_completions, _unproductive_completion_count(prior))
+            )
+            if retry_count <= UNPRODUCTIVE_COMPLETION_RETRY_LIMIT:
                 return _reserve_dispatch(
                     storage,
                     pr_number,
@@ -1289,7 +1624,12 @@ def should_dispatch(
                     provider,
                     key,
                     prior,
-                    reason="retry-unproductive-completion",
+                    reason=(
+                        "retry-incomplete-completion"
+                        if incomplete
+                        else "retry-unproductive-completion"
+                    ),
+                    task_progress_before=task_progress_before,
                 )
             retry_at = _unproductive_retry_available_at(prior)
             if retry_at is not None and _utc_now_dt() < retry_at:
@@ -1301,7 +1641,7 @@ def should_dispatch(
                     prior_head_sha=head_sha,
                     drainable=(
                         f"time: retry at {retry_at.isoformat()} "
-                        f"(after {unproductive_completions} zero-output runs)"
+                        f"(after {retry_count} same-head continuations)"
                     ),
                 )
             return _reserve_dispatch(
@@ -1311,7 +1651,12 @@ def should_dispatch(
                 provider,
                 key,
                 prior,
-                reason="retry-after-unproductive-cooldown",
+                reason=(
+                    "retry-after-incomplete-cooldown"
+                    if incomplete
+                    else "retry-after-unproductive-cooldown"
+                ),
+                task_progress_before=task_progress_before,
             )
         if status == "completed" or (status == "pending" and not _pending_record_is_stale(prior)):
             return DebounceDecision(
@@ -1338,7 +1683,16 @@ def should_dispatch(
         reason = "stale-pending"
     else:
         reason = f"retry-{str(prior.get('status') or 'unknown')}"
-    return _reserve_dispatch(storage, pr_number, head_sha, provider, key, prior, reason=reason)
+    return _reserve_dispatch(
+        storage,
+        pr_number,
+        head_sha,
+        provider,
+        key,
+        prior,
+        reason=reason,
+        task_progress_before=task_progress_before,
+    )
 
 
 def _authority_challenge_command(
@@ -1411,6 +1765,63 @@ def _unrecorded_completion(prior: dict[str, Any], key: str, reason: str) -> dict
     }
 
 
+def _derive_completion_productivity(
+    prior: dict[str, Any],
+    *,
+    reserved_head_sha: str,
+    observed_head_sha: str,
+    task_progress_after: object,
+    fallback: bool | None,
+) -> tuple[bool | None, dict[str, Any]]:
+    """Combine authoritative head and checklist observations without inventing progress."""
+    if prior.get("status") in TERMINAL_STATUSES and prior.get("head_sha") == reserved_head_sha:
+        # Widen literal key inference for mypy while preserving the stored fields.
+        persisted: dict[str, Any] = {
+            key: prior[key]
+            for key in (
+                "observed_head_sha",
+                "tasks_total_after",
+                "tasks_completed_after",
+                "task_set_fingerprint_after",
+                "tasks_completed_delta",
+                "task_progress_reason",
+            )
+            if key in prior
+        }
+        if "productive" in prior:
+            return bool(prior["productive"]), persisted
+        return None, persisted
+
+    observed_head = str(observed_head_sha or "").strip()
+    after = _normalize_task_progress_snapshot(task_progress_after)
+    fields = _task_progress_record_fields(after, suffix="after")
+    if observed_head:
+        fields["observed_head_sha"] = observed_head
+        if observed_head != reserved_head_sha:
+            fields["task_progress_reason"] = "head-changed"
+            return True, fields
+
+        before = _task_progress_before_from_record(prior)
+        if before is None:
+            fields["task_progress_reason"] = "baseline-missing"
+            return None, fields
+        if after is None:
+            fields["task_progress_reason"] = "after-missing"
+            return None, fields
+        if before["fingerprint"] != after["fingerprint"]:
+            fields["task_progress_reason"] = "task-set-changed"
+            return None, fields
+        delta = after["completed"] - before["completed"]
+        fields["tasks_completed_delta"] = delta
+        fields["task_progress_reason"] = "measured"
+        return delta > 0, fields
+
+    if after is not None:
+        fields["task_progress_reason"] = "head-unmeasured"
+        return None, fields
+    return fallback, fields
+
+
 def record_completion(
     pr_number: int,
     head_sha: str,
@@ -1418,14 +1829,16 @@ def record_completion(
     result: RunnerResult | dict[str, Any],
     storage: RunnerDispatchStorage | None = None,
     produced_work: bool | None = None,
+    *,
+    observed_head_sha: str = "",
+    task_progress_after: object = None,
 ) -> dict[str, Any]:
     """Persist terminal runner state after a dispatch finishes.
 
-    ``produced_work`` is the caller's verdict on whether the run actually moved the branch.
-    ``None`` means unmeasured and preserves an existing same-head unproductive retry streak;
-    otherwise it preserves the pre-#3433 behavior. ``False`` marks the
-    completion unproductive so ``should_dispatch`` will grant a bounded retry on the same head
-    instead of refusing forever (#3433).
+    When ``observed_head_sha`` is supplied, productivity is derived from the authoritative
+    reservation plus that live head and a comparable task snapshot. A changed head or positive
+    completed-task delta is productive. Unknown/mismatched task progress stays unmeasured.
+    Legacy callers may still supply ``produced_work`` directly.
     """
     provider = _validate_provider(provider)
     storage = storage or _storage_from_name("auto")
@@ -1447,7 +1860,9 @@ def record_completion(
             raise
         _log_storage_failure("read", exc)
         return _unrecorded_completion({}, key, "authoritative-storage-unavailable")
-    if uses_fallback and prior_record is None:
+    if (
+        uses_fallback or isinstance(completion_storage, PrCommentRunnerStorage)
+    ) and prior_record is None:
         return _unrecorded_completion({}, key, "authoritative-reservation-missing")
     prior = prior_record or {}
     if prior.get("workflow_attempt_id") and (
@@ -1458,6 +1873,13 @@ def record_completion(
         # including when both attempts target the same head. The owning attempt may report
         # a new head only when it explicitly measured productive work. Return an observation only.
         return _unrecorded_completion(prior, key, "stale-attempt")
+    produced_work, productivity_fields = _derive_completion_productivity(
+        prior,
+        reserved_head_sha=head_sha,
+        observed_head_sha=observed_head_sha,
+        task_progress_after=task_progress_after,
+        fallback=produced_work,
+    )
     if produced_work is None and prior.get("key") == key and _completion_was_unproductive(prior):
         produced_work = False
     completed_at = (
@@ -1474,7 +1896,39 @@ def record_completion(
         "status": status,
         "completed_at": completed_at,
         "result": compact_result,
+        **productivity_fields,
     }
+    same_terminal_attempt = prior.get("key") == key and prior.get("status") in TERMINAL_STATUSES
+    if status == "completed" and same_terminal_attempt:
+        # Completion replays cannot change the first attempt's disposition.
+        if "completion_incomplete" in prior:
+            record["completion_incomplete"] = prior["completion_incomplete"]
+        elif _completion_needs_continuation(prior):
+            record["completion_incomplete"] = True
+    elif status == "completed" and observed_head_sha and observed_head_sha != head_sha:
+        record["completion_incomplete"] = False
+    elif (
+        status == "completed"
+        and observed_head_sha == head_sha
+        and (task_progress_after is not None or "tasks_total_before" in prior)
+    ):
+        after = _normalize_task_progress_snapshot(task_progress_after)
+        record["completion_incomplete"] = bool(
+            after is None
+            or after["total"] <= 0
+            or after["completed"] < after["total"]
+            or productivity_fields.get("task_progress_reason") == "task-set-changed"
+        )
+    if status == "completed" and record.get("completion_incomplete") is True:
+        record["continuation_completions"] = (
+            _continuation_completion_count(prior)
+            if same_terminal_attempt
+            else min(
+                _continuation_completion_count(prior) + 1, UNPRODUCTIVE_COMPLETION_RETRY_LIMIT + 1
+            )
+        )
+    elif status == "completed" and record.get("completion_incomplete") is False:
+        record["continuation_completions"] = 0
     if status == "completed" and produced_work is not None:
         record["productive"] = bool(produced_work)
         if produced_work:
@@ -1494,8 +1948,14 @@ def record_completion(
             record["unproductive_completions"] = min(
                 previous + 1, UNPRODUCTIVE_COMPLETION_RETRY_LIMIT + 1
             )
+    if status == "completed" and "completion_incomplete" not in record and produced_work is False:
+        record["continuation_completions"] = record.get("unproductive_completions", 0)
     try:
-        completion_storage.write_record(pr_number, provider, record)
+        if isinstance(completion_storage, PrCommentRunnerStorage):
+            record["reservation_id"] = _reservation_identity(prior)
+            completion_storage.write_completion(pr_number, provider, record)
+        else:
+            completion_storage.write_record(pr_number, provider, record)
     except Exception as exc:
         if not uses_fallback:
             raise
@@ -1581,6 +2041,7 @@ def _cmd_should_dispatch(args: argparse.Namespace) -> int:
         args.provider,
         storage=_storage_from_name(args.storage),
         authority_challenge=args.authority_challenge,
+        task_progress_before=args.task_progress_before,
     )
     outputs = {
         "should_dispatch": "true" if decision.should_dispatch else "false",
@@ -1639,6 +2100,8 @@ def _cmd_record_completion(args: argparse.Namespace) -> int:
         result,
         storage=_storage_from_name(args.storage),
         produced_work=_parse_produced_work(args.produced_work),
+        observed_head_sha=args.observed_head_sha,
+        task_progress_after=args.task_progress_after,
     )
     outputs = {
         "recorded": "false" if record.get("completion_recorded") is False else "true",
@@ -1705,6 +2168,11 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="reserve a signed authority challenge before bypassing ordinary debounce",
     )
+    dispatch.add_argument(
+        "--task-progress-before",
+        default="",
+        help="validated JSON checklist snapshot captured when reserving the dispatch",
+    )
 
     complete = subparsers.add_parser("record-completion", help="persist runner completion")
     complete.add_argument("--provider", choices=sorted(PROVIDERS), required=True)
@@ -1712,6 +2180,16 @@ def build_parser() -> argparse.ArgumentParser:
     complete.add_argument("--head-sha", required=True)
     complete.add_argument(
         "--storage", choices=["auto", "pr-comment", "repo-variable"], default="auto"
+    )
+    complete.add_argument(
+        "--observed-head-sha",
+        default="",
+        help="live PR head observed after the runner and summary reconciliation",
+    )
+    complete.add_argument(
+        "--task-progress-after",
+        default="",
+        help="validated JSON checklist snapshot observed after the runner",
     )
     complete.add_argument("--raw-output-file", default="")
     complete.add_argument("--summary", default="")

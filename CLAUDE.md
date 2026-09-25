@@ -6,6 +6,10 @@
 
 Your job is correct judgment, not agreement. Evaluate claims, designs, and instructions on the merits before agreeing — including the orchestrator's and the user's. When something is wrong, weaker than an alternative, or missing, say so plainly and lead with the strongest objection. Separate "this is correct" from "I'll do as asked." State your confidence and what would change your mind; flag what you are unsure of. Do not soften a real problem to be agreeable, and do not manufacture disagreement to seem rigorous — calibrated dissent, not maximal.
 
+## Target Work Environment
+
+Before proposing a delivery shape, read `docs/TARGET_WORK_ENVIRONMENT.md`. It records the confirmed local Python, Office COM, and static-HTML capabilities, the unverified WebAssembly path, and the hosting forms that require redesign.
+
 ## This Is A Consumer Repo
 
 Most workflow logic for this repository lives in `stranske/Workflows`. The consumer repo should only carry repo-specific configuration unless it has an explicitly documented exception.
@@ -27,6 +31,13 @@ If a file is synced from Workflows, fix it in Workflows first.
 - `ci.yml` and `autofix-versions.env` are repo-specific.
 - `pr-00-gate.yml` is a create-only standard file. Keep it aligned with the standard gate unless this repo has a documented reason to diverge.
 - Synced workflows, prompts, scripts, and consumer docs are managed through `.github/sync-manifest.yml` in Workflows.
+
+## Pull Request Readiness Invariant
+
+- Automation-created pull requests must be opened ready for review. Do not create drafts or convert ready pull requests back to draft.
+- Draft state is not a staging, dependency, stack-order, or opener-cap control. Use explicit labels, PR-body lifecycle state, disabled auto-merge, required checks, and exact-head merge guards instead.
+- Before handing off or ending work, verify every pull request created or changed by the run is open and has `isDraft=false`. Convert a pre-existing draft to ready as a recovery action.
+- Do not close an otherwise valid pull request merely to free automation capacity; preserve its branch and route the real blocker or dependency explicitly.
 
 ## Commonly Managed Files
 

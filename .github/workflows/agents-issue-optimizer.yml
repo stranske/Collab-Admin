@@ -70,6 +70,7 @@ jobs:
                 . == "agents:auto-pilot-pause" or
                 . == "needs-human" or
                 . == "tracker:durable" or
+                . == "automated" or
                 . == "wontfix"
               )' /tmp/format-eligibility.json >/dev/null; then
               echo "Skipping format: issue is held, exempt, or owned by auto-pilot."
@@ -120,28 +121,28 @@ jobs:
           elif [[ "$LABEL_NAME" == "agents:optimize" ]]; then
             # Skip if auto-pilot label is present (auto-pilot runs optimizer inline)
             # Use pipefail to ensure gh errors cause check to fail-closed
-            if gh issue view "${{ github.event.issue.number }}" --json labels \
+            if gh issue view "$EVENT_ISSUE_NUMBER" --json labels \
                 --jq '.labels[].name' | grep -qx 'agents:auto-pilot'; then
               echo "should_run=false" >> "$GITHUB_OUTPUT"
               echo "Skipping: auto-pilot label present (runs inline)"
             else
               {
                 echo "phase=analyze"
-                echo "issue_number=${{ github.event.issue.number }}"
+                echo "issue_number=$EVENT_ISSUE_NUMBER"
                 echo "should_run=true"
               } >> "$GITHUB_OUTPUT"
             fi
           elif [[ "$LABEL_NAME" == "agents:apply-suggestions" ]]; then
             # Skip if auto-pilot label is present (auto-pilot manages this label for state)
             # Use pipefail to ensure gh errors cause check to fail-closed
-            if gh issue view "${{ github.event.issue.number }}" --json labels \
+            if gh issue view "$EVENT_ISSUE_NUMBER" --json labels \
                 --jq '.labels[].name' | grep -qx 'agents:auto-pilot'; then
               echo "should_run=false" >> "$GITHUB_OUTPUT"
               echo "Skipping: auto-pilot label present (manages apply inline)"
             else
               {
                 echo "phase=apply"
-                echo "issue_number=${{ github.event.issue.number }}"
+                echo "issue_number=$EVENT_ISSUE_NUMBER"
                 echo "should_run=true"
               } >> "$GITHUB_OUTPUT"
             fi
@@ -170,7 +171,7 @@ jobs:
         continue-on-error: true
         uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3
         with:
-          app-id: ${{ secrets.WORKFLOWS_APP_ID }}
+          client-id: ${{ secrets.WORKFLOWS_APP_ID }}
           private-key: ${{ secrets.WORKFLOWS_APP_PRIVATE_KEY }}
 
       - name: Select Token
@@ -211,8 +212,29 @@ jobs:
         if: steps.check.outputs.should_run == 'true'
         uses: ./.github/actions/setup-api-client
         with:
-          secrets: ${{ toJSON(secrets) }}
+          # Named secret inputs instead of the whole-secrets-context blob.
+          # setup-api-client jq-extracts exactly these keys from it and already
+          # declares each as an individual input, so this is behaviour-preserving:
+          # an absent secret resolves to empty either way. Removing that handoff
+          # is what cleared GitHub's suspicious-workflow hold on agents-dedup
+          # (#3185) - it then ran at run_attempt 1 with nothing approved.
+          # NOTE: this surface takes its token from the app-token step, not
+          # github.token - preserved deliberately.
           github_token: ${{ steps.token.outputs.token }}
+          service_bot_pat: ${{ secrets.SERVICE_BOT_PAT }}
+          actions_bot_pat: ${{ secrets.ACTIONS_BOT_PAT }}
+          owner_pr_pat: ${{ secrets.OWNER_PR_PAT }}
+          agents_automation_pat: ${{ secrets.AGENTS_AUTOMATION_PAT }}
+          workflows_app_id: ${{ secrets.WORKFLOWS_APP_ID }}
+          workflows_app_private_key: ${{ secrets.WORKFLOWS_APP_PRIVATE_KEY }}
+          keepalive_app_id: ${{ secrets.KEEPALIVE_APP_ID }}
+          keepalive_app_private_key: ${{ secrets.KEEPALIVE_APP_PRIVATE_KEY }}
+          gh_app_id: ${{ secrets.GH_APP_ID }}
+          gh_app_private_key: ${{ secrets.GH_APP_PRIVATE_KEY }}
+          app_1_id: ${{ secrets.APP_1_ID }}
+          app_1_private_key: ${{ secrets.APP_1_PRIVATE_KEY }}
+          app_2_id: ${{ secrets.APP_2_ID }}
+          app_2_private_key: ${{ secrets.APP_2_PRIVATE_KEY }}
 
       - name: Set up Python
         if: steps.check.outputs.should_run == 'true'
@@ -232,6 +254,7 @@ jobs:
         env:
           GH_TOKEN: ${{ steps.token.outputs.token }}
           ISSUE_NUMBER: ${{ steps.check.outputs.issue_number }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
         run: |
           # Check how many optimizer runs for this issue in last hour
           one_hour_ago=$( \
@@ -239,11 +262,15 @@ jobs:
             '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null \
             || date -u -v-1H '+%Y-%m-%dT%H:%M:%SZ')
 
+          # Count only self-dispatched retries. The initial `issues:labeled` run can
+          # dispatch optimizer phases (format/analyze/apply) but is not one of the
+          # bounded self-dispatched retry attempts.
           # `gh run list` defaults to 20 runs, which a tight loop exhausts inside the
           # window; ask for enough history to actually see the recursion.
           # shellcheck disable=SC2016
           count=$(gh run list \
             --workflow=agents-issue-optimizer.yml \
+            --event workflow_dispatch \
             --limit 100 \
             --json conclusion,createdAt,displayTitle \
             | jq --arg cutoff "$one_hour_ago" \
@@ -261,7 +288,7 @@ jobs:
             # Post warning comment
             REPO="${{ github.repository }}"
             DOCS_URL="https://github.com/${REPO}"
-            DOCS_URL+="/blob/phase-3/Agents.md"
+            DOCS_URL+="/blob/${DEFAULT_BRANCH}/WORKFLOW_USER_GUIDE.md"
             DOCS_URL+="#auto-pilot-recovery-procedures"
             printf '%s\n' \
               "## ⚠️ Optimizer Paused" \
@@ -595,7 +622,11 @@ jobs:
           # Keep the format-result label truthful: the generated issue must
           # pass the canonical Workflows validator before it can be marked
           # agents:formatted below.
-          python workflows-scripts/.github/scripts/issue_format.py /tmp/formatted_body.md
+          if ! python workflows-scripts/.github/scripts/issue_format.py /tmp/formatted_body.md \
+              > /tmp/format_validation_report.md 2>&1; then
+            cat /tmp/format_validation_report.md
+            exit 1
+          fi
 
           # Update issue body with formatted version
           gh issue edit "${ISSUE_NUMBER}" --body-file /tmp/formatted_body.md
@@ -630,18 +661,20 @@ jobs:
             ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           if [ -n "${ISSUE_NUMBER}" ]; then
-            body=$(cat <<'COMMENT'
+            {
+              cat <<COMMENT
           ⚠️ **Workflow failed**
 
           The agents-issue-optimizer workflow encountered an error.
 
-          **Details**: [View workflow run](RUN_URL_PLACEHOLDER)
-
-          Please check the logs and retry if needed.
+          **Details**: [View workflow run](${RUN_URL})
           COMMENT
-          )
-            body="${body//RUN_URL_PLACEHOLDER/${RUN_URL}}"
-            gh issue comment "${ISSUE_NUMBER}" --body "$body" || true
+              if [[ -s /tmp/format_validation_report.md ]]; then
+                printf '\n**Format validation report:**\n```text\n'
+                sed -n '1,160p' /tmp/format_validation_report.md
+                printf '```\n'
+              fi
+            } | gh issue comment "${ISSUE_NUMBER}" --body-file - || true
           fi
 
       - name: Release failed format lease

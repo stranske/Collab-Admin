@@ -4,7 +4,7 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 
-const { parseScopeTasksAcceptanceSections } = require('./issue_scope_parser');
+const { parseScopeTasksAcceptanceSections, visibleChecklistContent, stripPrTemplateControls } = require('./issue_scope_parser');
 const { getGithubApiCache } = require('./github-api-cache-client');
 const {
   loadKeepaliveState,
@@ -18,6 +18,7 @@ const { detectConflicts } = require('./conflict_detector');
 const { parseTimeoutConfig } = require('./timeout_config');
 const { ensureRateLimitWrapped } = require('./github-rate-limited-wrapper');
 const { verifyAuthorityChallengeClaim } = require('./keepalive_challenge_due');
+const { beginChallenge, confirmChallenge, reopenUnconfirmedChallenge, requester } = require('./keepalive_authority_state');
 
 // Token load balancer for rate limit management
 let tokenLoadBalancer = null;
@@ -1471,6 +1472,41 @@ function isActionableChecklistItemText(text) {
   return !isStatusMetricChecklistItem(text) && !isPlaceholderChecklistItem(text);
 }
 
+// The source-derived summary remains the canonical section parser input, but
+// visible checkboxes outside it must also reach both dispatch and live reporting.
+function parseKeepaliveChecklistSections(body) {
+  body = stripPrTemplateControls(body);
+  const sections = normaliseChecklistSections(parseScopeTasksAcceptanceSections(body));
+  for (const key of ['tasks', 'acceptance']) {
+    sections[key] = visibleChecklistContent(sections[key]);
+  }
+  const outside = String(body || '').replace(
+    /<!-- auto-status-summary:start -->[\s\S]*?<!-- auto-status-summary:end -->/g, '',
+  );
+  const itemKey = (item) => `${item.checked}:${normaliseTaskKey(item.text)}`;
+  const represented = outside === String(body || '')
+    ? new Set(extractChecklistItems([sections.tasks, sections.acceptance].join('\n')).map(itemKey))
+    : new Set();
+  const additional = [];
+  let capturing = false;
+  for (const line of visibleChecklistContent(outside).split('\n')) {
+    const item = extractChecklistItems(line)[0];
+    if (item) {
+      capturing = isActionableChecklistItemText(item.text) && !represented.has(itemKey(item));
+      if (capturing) additional.push(line);
+    } else if (capturing && /^\s+\S/.test(line)) {
+      additional.push(line);
+    } else {
+      capturing = false;
+    }
+  }
+  if (additional.length) {
+    sections.tasks = [sections.tasks, '### Additional PR tasks', additional.join('\n')]
+      .filter(Boolean).join('\n\n');
+  }
+  return sections;
+}
+
 function toActionableChecklistCounts(markdown) {
   const actionable = extractChecklistItems(markdown).filter((item) => isActionableChecklistItemText(item.text));
   const checked = actionable.filter((item) => item.checked).length;
@@ -1479,6 +1515,30 @@ function toActionableChecklistCounts(markdown) {
     total,
     checked,
     unchecked: Math.max(0, total - checked),
+  };
+}
+
+function buildTaskProgressSnapshot(body) {
+  const sections = parseKeepaliveChecklistSections(body);
+  const identities = [];
+  let completed = 0;
+  for (const [section, markdown] of [
+    ['tasks', sections.tasks || ''],
+    ['acceptance', sections.acceptance || ''],
+  ]) {
+    const actionable = extractChecklistItems(markdown)
+      .filter((item) => isActionableChecklistItemText(item.text));
+    for (const item of actionable) {
+      identities.push(`${section}:${normaliseTaskKey(item.text)}`);
+      if (item.checked) completed += 1;
+    }
+  }
+  identities.sort();
+  return {
+    schema: 1,
+    total: identities.length,
+    completed,
+    fingerprint: crypto.createHash('sha256').update(JSON.stringify(identities)).digest('hex'),
   };
 }
 
@@ -1834,7 +1894,10 @@ async function resolvePrNumber({ github, context, core, payload: overridePayload
     return overridePayload.workflow_run.pull_requests[0].number;
   }
 
-  if (eventName === 'pull_request' && payload.pull_request) {
+  if (
+    (eventName === 'pull_request' || eventName === 'pull_request_target')
+    && payload.pull_request
+  ) {
     return payload.pull_request.number;
   }
 
@@ -2575,6 +2638,7 @@ async function evaluateKeepaliveLoop({ github: rawGithub, context, core, payload
     let agentRoutingMode = 'default';
     let delegationReason = '';
     let delegationShouldSwitch = false;
+    let delegationSource = '';
     if (hasAgentLabel) {
       try {
         const { resolveAgentRoutingFromLabels } = require('./agent_registry.js');
@@ -2605,7 +2669,7 @@ async function evaluateKeepaliveLoop({ github: rawGithub, context, core, payload
       }
     }
     const hasHighPrivilege = labels.includes('agent-high-privilege');
-    const keepaliveEnabled = config.keepalive_enabled && hasAgentLabel;
+    let keepaliveEnabled = config.keepalive_enabled && hasAgentLabel;
 
     // Operator stop-controls (#2267). The canonical event-driven loop must enforce the
     // documented pause / human-block guardrails itself — previously they lived only on
@@ -2621,11 +2685,12 @@ async function evaluateKeepaliveLoop({ github: rawGithub, context, core, payload
     const runCapZero = labels.includes('agents:max-runs:0');
 
     const sections = parseScopeTasksAcceptanceSections(pr.body || '');
-    const normalisedSections = normaliseChecklistSections(sections);
+    const normalisedSections = parseKeepaliveChecklistSections(pr.body || '');
     const combinedChecklist = [normalisedSections?.tasks, normalisedSections?.acceptance]
       .filter(Boolean)
       .join('\n');
     const checkboxCounts = toActionableChecklistCounts(combinedChecklist);
+    const taskProgressSnapshot = buildTaskProgressSnapshot(pr.body || '');
     const tasksPresent = checkboxCounts.total > 0;
     const tasksRemaining = checkboxCounts.unchecked > 0;
 
@@ -2675,7 +2740,8 @@ async function evaluateKeepaliveLoop({ github: rawGithub, context, core, payload
     // agent:auto delegation — resolve actual agent via policy after state is available
     if (agentRoutingMode === 'auto') {
       try {
-        const { decideNextAgent } = require('./agent_delegation_policy.js');
+        const { decideNextAgent, loadRouteWeights, resolveRoundKind, DEFAULT_ROUTE_WEIGHTS_URL } =
+          require('./agent_delegation_policy.js');
         const { loadAgentRegistry } = require('./agent_registry.js');
         const registry = loadAgentRegistry();
         // Build secrets availability from env vars set by the workflow
@@ -2683,25 +2749,67 @@ async function evaluateKeepaliveLoop({ github: rawGithub, context, core, payload
         if (process.env.HAS_CODEX_AUTH === 'true') secrets.CODEX_AUTH_JSON = true;
         if (process.env.HAS_CLAUDE_AUTH === 'true') secrets.CLAUDE_AUTH_JSON = true;
         if (process.env.HAS_CLAUDE_OAUTH === 'true') secrets.CLAUDE_CODE_OAUTH_TOKEN = true;
+        if (process.env.HAS_CURSOR_AUTH === 'true') secrets.CURSOR_API_KEY = true;
+        if (process.env.HAS_GEMINI_AUTH === 'true') secrets.GEMINI_API_KEY = true;
+        const workflowPath = process.env.GITHUB_WORKFLOW === 'Agents Gate Followups'
+          ? '.github/workflows/agents-81-gate-followups.yml'
+          : '.github/workflows/agents-keepalive-loop.yml';
+        const workflowText = fs.existsSync(workflowPath) ? fs.readFileSync(workflowPath, 'utf8') : '';
+        const runnableAgents = Object.keys(registry.agents || {}).filter((key) => (
+          new RegExp(`^  run-${key}:`, 'm').test(workflowText)
+        ));
+        const routeWeightsUrl = process.env.ROUTE_WEIGHTS_URL || DEFAULT_ROUTE_WEIGHTS_URL;
+        const routeWeights = await loadRouteWeights({ url: routeWeightsUrl });
+        const roundKind = resolveRoundKind({ labels, state });
         const decision = decideNextAgent({
           state,
           labels: labels.map(String),
           secrets,
           registry,
+          runnableAgents,
+          routeWeights,
+          roundKind,
           core,
         });
         if (decision.agent) {
           agentType = decision.agent;
           delegationReason = decision.reason;
           delegationShouldSwitch = Boolean(decision.shouldSwitch);
-          core?.info?.(`Delegation policy: ${decision.agent} (${decision.reason}, switch=${decision.shouldSwitch})`);
+          delegationSource = decision.delegationSource || 'static';
+          core?.info?.(
+            `Delegation policy: ${decision.agent} (${decision.reason}, ` +
+            `switch=${decision.shouldSwitch}, source=${delegationSource})`
+          );
         } else {
           core?.warning?.(`Delegation policy returned no agent: ${decision.reason}`);
+          if (decision.reason === 'multiple-agent-labels') {
+            agentType = '';
+            hasAgentLabel = false;
+            keepaliveEnabled = false;
+            delegationReason = decision.reason;
+            delegationShouldSwitch = false;
+            delegationSource = decision.delegationSource || 'static';
+          }
         }
       } catch (err) {
         core?.warning?.(`Delegation policy failed, keeping ${agentType}: ${err.message}`);
       }
     }
+
+    const configuredAgent = _agentRegistry.agents?.[agentType];
+    const workflowPath = process.env.GITHUB_WORKFLOW === 'Agents Gate Followups'
+      ? '.github/workflows/agents-81-gate-followups.yml'
+      : '.github/workflows/agents-keepalive-loop.yml';
+    const workflowText = fs.existsSync(workflowPath) ? fs.readFileSync(workflowPath, 'utf8') : '';
+    const workflowDeclaresRunner = new RegExp(`^  run-${agentType}:`, 'm').test(workflowText);
+    const runnerUnavailable = Boolean(
+      configuredAgent && (
+        configuredAgent.enabled === false ||
+        !configuredAgent.runner_workflow ||
+        configuredAgent.capabilities?.pr_keepalive !== true ||
+        !workflowDeclaresRunner
+      ),
+    );
 
     // Prefer state iteration unless config explicitly sets it (0 from config is default, not explicit)
     const configHasExplicitIteration = config.iteration > 0;
@@ -2859,6 +2967,12 @@ async function evaluateKeepaliveLoop({ github: rawGithub, context, core, payload
     } else if (hasDefinitiveConflict && hasAgentLabel && keepaliveEnabled) {
       action = 'conflict';
       reason = `merge-conflict-${conflictResult.primarySource || 'detected'}`;
+    } else if (runnerUnavailable) {
+      action = 'skip';
+      reason = `no-runner-for-agent:${agentType}`;
+    } else if (delegationReason === 'multiple-agent-labels') {
+      action = 'wait';
+      reason = delegationReason;
     } else if (!hasAgentLabel) {
       action = 'wait';
       reason = 'missing-agent-label';
@@ -3086,12 +3200,14 @@ async function evaluateKeepaliveLoop({ github: rawGithub, context, core, payload
       maxIterations,
       failureThreshold,
       checkboxCounts,
+      taskProgressSnapshot,
       hasAgentLabel,
       hasHighPrivilege,
       agentType: resolvedAgentType,
       agentRoutingMode,
       delegationReason,
       delegationShouldSwitch,
+      delegationSource,
       taskAppendix,
       keepaliveEnabled,
       stateCommentId: stateResult.commentId || 0,
@@ -3179,8 +3295,8 @@ async function updateKeepaliveLoopSummary({ github: rawGithub, context, core, in
     }
 
     const gateConclusion = normalise(inputs.gateConclusion || inputs.gate_conclusion);
-    const action = normalise(inputs.action);
-    const reason = normalise(inputs.reason);
+    let action = normalise(inputs.action);
+    let reason = normalise(inputs.reason);
     const tasksTotalInput = inputs.tasksTotal ?? inputs.tasks_total;
     const tasksUncheckedInput = inputs.tasksUnchecked ?? inputs.tasks_unchecked;
     const keepaliveEnabledInput = inputs.keepaliveEnabled ?? inputs.keepalive_enabled;
@@ -3203,6 +3319,7 @@ async function updateKeepaliveLoopSummary({ github: rawGithub, context, core, in
     // Delegation policy inputs (from evaluate step when agent:auto is active)
     const delegationReason = normalise(inputs.delegation_reason ?? inputs.delegationReason);
     const delegationShouldSwitch = toBool(inputs.delegation_should_switch ?? inputs.delegationShouldSwitch, false);
+    const delegationSource = normalise(inputs.delegation_source ?? inputs.delegationSource);
     const agentRoutingMode = normalise(inputs.agent_routing_mode ?? inputs.agentRoutingMode);
 
     const {
@@ -3353,7 +3470,7 @@ async function updateKeepaliveLoopSummary({ github: rawGithub, context, core, in
 
     const previousFailure = previousState?.failure || {};
     const prBody = await fetchPrBody({ github, context, prNumber, core });
-    const focusSections = prBody ? normaliseChecklistSections(parseScopeTasksAcceptanceSections(prBody)) : {};
+    const focusSections = prBody ? parseKeepaliveChecklistSections(prBody) : {};
     const focusItems = extractChecklistItems(focusSections.tasks || focusSections.acceptance || '');
     const focusUnchecked = focusItems.filter((item) => !item.checked);
     const currentFocus = normaliseTaskText(previousState?.current_focus || '');
@@ -3377,6 +3494,30 @@ async function updateKeepaliveLoopSummary({ github: rawGithub, context, core, in
           `[summary] Re-counted actionable checkboxes from live PR body: ` +
           `total ${staleTotal}→${tasksTotal}, unchecked ${staleUnchecked}→${tasksUnchecked}`,
         );
+      }
+    }
+
+    // A reviewer can add work after evaluation but before this live re-count.
+    // Do not publish a stale success or add automerge while that work is visible.
+    if (action === 'stop' && reason === 'tasks-complete' && tasksUnchecked > 0) {
+      action = 'wait';
+      reason = 'tasks-changed';
+      core?.info?.('Visible tasks changed after evaluation; keepalive must re-evaluate.');
+    }
+
+    // The root merger selects by this label, so a previous completion must not
+    // authorize a merge after visible work reopens, regardless of current action.
+    if (prBody && tasksUnchecked > 0 && labels.some((label) => label.toLowerCase() === 'automerge')) {
+      try {
+        await github.rest.issues.removeLabel({
+          owner: context.repo.owner,
+          repo: context.repo.repo,
+          issue_number: prNumber,
+          name: 'automerge',
+        });
+        core?.info?.('Removed stale automerge authorization while visible tasks remain.');
+      } catch (error) {
+        if (error?.status !== 404) throw error;
       }
     }
 
@@ -3579,6 +3720,10 @@ async function updateKeepaliveLoopSummary({ github: rawGithub, context, core, in
       repository: `${context.repo.owner}/${context.repo.repo}`,
       prNumber,
       boundaryFingerprint: authorityChallengeFingerprint,
+      generation: authorityChallengeClaim.generation,
+      dueAt: authorityChallengeClaim.due_at,
+      expiresAt: authorityChallengeClaim.expires_at,
+      headSha: inputs.head_sha ?? inputs.headSha,
       nonce: authorityChallengeClaim.nonce,
       sweepRunId: authorityChallengeClaim.sweep_run_id,
       sweepRunAttempt: authorityChallengeClaim.sweep_run_attempt,
@@ -3587,7 +3732,11 @@ async function updateKeepaliveLoopSummary({ github: rawGithub, context, core, in
       previousAuthorityChallenge &&
       Boolean(authorityChallengeFingerprint) &&
       authorityChallengeClaimVerified &&
-      authorityChallengeFingerprint === previousAttention.boundary_fingerprint;
+      authorityChallengeFingerprint === previousAttention.boundary_fingerprint &&
+      authorityChallengeClaim.generation === previousAttention.generation &&
+      authorityChallengeClaim.due_at === previousAttention.challenge_due_at &&
+      authorityChallengeClaim.expires_at === previousAttention.expires_at &&
+      authorityChallengeClaim.head_sha === (inputs.head_sha ?? inputs.headSha);
     const authorityEvidence = buildAuthorityChallengeEvidence({
       agentSummary,
       summaryReason,
@@ -3597,18 +3746,30 @@ async function updateKeepaliveLoopSummary({ github: rawGithub, context, core, in
     const escalationRequired =
       ((action === 'run' || action === 'fix') && runResult && runResult !== 'success' && errorCategory !== ERROR_CATEGORIES.transient) ||
       (action === 'stop' && !isSuccessStop && !isNeutralStop && errorCategory !== ERROR_CATEGORIES.transient);
-    const authorityChallengeConfirmed =
+    const authorityChallengeProjection =
       authorityChallengeProvenanceMatches &&
       escalationRequired &&
       errorCategory === ERROR_CATEGORIES.auth &&
+      agentExecutionStarted === true &&
       Boolean(authorityEvidence.fingerprint) &&
       authorityEvidence.actionable &&
       authorityEvidence.fingerprint === authorityChallengeFingerprint;
+    const pendingAuthorityClaim = authorityChallengeProjection ? {
+      generation: authorityChallengeClaim.generation,
+      boundary_fingerprint: authorityChallengeFingerprint,
+      due_at: authorityChallengeClaim.due_at,
+      expires_at: authorityChallengeClaim.expires_at,
+      head_sha: authorityChallengeClaim.head_sha,
+      nonce: authorityChallengeClaim.nonce,
+      sweep_run_id: authorityChallengeClaim.sweep_run_id,
+      sweep_run_attempt: authorityChallengeClaim.sweep_run_attempt,
+    } : null;
+    let authorityChallengeConfirmed = false;
     let escalationDisposition = selectEscalationDisposition({
       required: escalationRequired || stop,
       errorCategory,
       summaryReason,
-      authorityChallengeConfirmed,
+      authorityChallengeConfirmed: authorityChallengeProjection,
     });
     const recoveryLeaseReason = stop
       ? normalise(summaryReason).replace(/-repeat$/, '')
@@ -3821,6 +3982,9 @@ async function updateKeepaliveLoopSummary({ github: rawGithub, context, core, in
         `| Selected agent | ${agentDisplayName} |`,
         `| Reason | ${delegationReason} |`,
       );
+      if (delegationSource) {
+        summaryLines.push(`| Delegation source | ${delegationSource} |`);
+      }
       if (delegationShouldSwitch) {
         const prevAgent = previousState?.current_agent || 'unknown';
         summaryLines.push(`| Switch | ${prevAgent} → ${agentType} |`);
@@ -4290,6 +4454,7 @@ async function updateKeepaliveLoopSummary({ github: rawGithub, context, core, in
 
       newState.current_agent = agentType;
       newState.delegation_reason = delegationReason || previousState?.delegation_reason || '';
+      newState.delegation_source = delegationSource || previousState?.delegation_source || '';
       newState.effectiveness_history = effectivenessHistory;
 
       if (delegationShouldSwitch) {
@@ -4378,9 +4543,35 @@ async function updateKeepaliveLoopSummary({ github: rawGithub, context, core, in
       (previousAttention.owner === 'automation' &&
         ['automation-retry', 'challenge-due'].includes(previousAttention.disposition)) ||
       previousAttentionHasLegacyOwnership;
-    const challengeDueAt = escalationDisposition === 'challenge-due'
-      ? new Date().toISOString()
-      : null;
+    let challengeState = null;
+    if (shouldEscalate && escalationDisposition === 'challenge-due' && authorityEvidence.fingerprint) {
+      try {
+        const repository = `${context.repo.owner}/${context.repo.repo}`;
+        const request = requester(github);
+        const repoInfo = await request('GET', `/repos/${repository}`);
+        const dueAt = new Date().toISOString();
+        const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+        challengeState = await beginChallenge({
+          request, repository, prNumber,
+          defaultBranch: repoInfo.default_branch,
+          fingerprint: authorityEvidence.fingerprint,
+          headSha: inputs.head_sha ?? inputs.headSha,
+          dueAt, expiresAt,
+          expectedGeneration: previousAuthorityChallenge ? previousAttention.generation || null : null,
+        });
+        if (challengeState.status !== 'available' || Date.parse(challengeState.expires_at) <= Date.now()) {
+          escalationDisposition = 'automation-retry';
+          challengeState = null;
+        }
+      } catch (error) {
+        core?.warning?.(`Authority generation unavailable: ${error.message}`);
+        escalationDisposition = 'automation-retry';
+      }
+    }
+    if (escalationDisposition === 'challenge-due' && !challengeState) {
+      escalationDisposition = 'automation-retry';
+    }
+    const challengeDueAt = challengeState?.due_at || null;
     if (shouldEscalate) {
       const firstSeenAt = priorAttentionKey === attentionKey
         ? previousAttention.first_seen_at || new Date().toISOString()
@@ -4406,6 +4597,8 @@ async function updateKeepaliveLoopSummary({ github: rawGithub, context, core, in
           owner: 'automation',
           first_seen_at: firstSeenAt,
           challenge_due_at: challengeDueAt,
+          generation: challengeState?.generation || '',
+          expires_at: challengeState?.expires_at || '',
           boundary_fingerprint: escalationDisposition === 'challenge-due'
             ? authorityEvidence.fingerprint
             : '',
@@ -4471,16 +4664,22 @@ async function updateKeepaliveLoopSummary({ github: rawGithub, context, core, in
         // First persist a durable automation-owned transition containing the
         // exact action. If either later API call fails, the PR never falls back
         // to an actionless or falsely human-owned state.
+        const pendingAttention = {
+          key: attentionKey,
+          disposition: 'challenge-due',
+          owner: 'automation',
+          first_seen_at: previousAttention.first_seen_at || new Date().toISOString(),
+          challenge_due_at: pendingAuthorityClaim.due_at,
+          generation: pendingAuthorityClaim.generation,
+          expires_at: pendingAuthorityClaim.expires_at,
+          boundary_fingerprint: authorityEvidence.fingerprint,
+          boundary_detail: authorityEvidence.detail,
+          confirmation_pending_label: true,
+          next_action: authorityEvidence.humanAction,
+        };
         const pendingState = {
           ...newState,
-          attention: {
-            ...newState.attention,
-            disposition: 'challenge-due',
-            owner: 'automation',
-            challenge_due_at: new Date().toISOString(),
-            confirmation_pending_label: true,
-            next_action: authorityEvidence.humanAction,
-          },
+          attention: pendingAttention,
         };
         const pendingLines = [
           ...summaryLines,
@@ -4508,7 +4707,60 @@ async function updateKeepaliveLoopSummary({ github: rawGithub, context, core, in
         }
 
         if (hardHumanLabelApplied) {
-          summaryLines.push(
+          if (pendingAuthorityClaim) {
+            const repository = `${context.repo.owner}/${context.repo.repo}`;
+            const confirmation = {
+              request: requester(github), repository, prNumber, claim: pendingAuthorityClaim,
+              ownerAttempt: `${repository.toLowerCase()}:${context.runId || process.env.GITHUB_RUN_ID || ''}:${context.runAttempt || process.env.GITHUB_RUN_ATTEMPT || ''}`,
+              provider: agentType,
+              headSha: inputs.head_sha ?? inputs.headSha,
+            };
+            // Confirmation cannot grant another run: it only settles the same
+            // consumed receipt after needs-human was applied. Retry once for
+            // an ambiguous PR read or conditional ledger write before leaving
+            // the hard label and receipt pending for operator reconciliation.
+            for (let attempt = 0; attempt < 2 && !authorityChallengeConfirmed; attempt++) {
+              try {
+                authorityChallengeConfirmed = await confirmChallenge(confirmation);
+              } catch (error) {
+                core?.warning?.(`Authority receipt confirmation unavailable: ${error.message}`);
+              }
+            }
+            if (!authorityChallengeConfirmed) {
+              const repository = `${context.repo.owner}/${context.repo.repo}`;
+              let recovery = { status: 'uncertain' };
+              try {
+                recovery = await reopenUnconfirmedChallenge({
+                  request: requester(github), repository, prNumber, claim: pendingAuthorityClaim,
+                  ownerAttempt: `${repository.toLowerCase()}:${context.runId || process.env.GITHUB_RUN_ID || ''}:${context.runAttempt || process.env.GITHUB_RUN_ATTEMPT || ''}`,
+                  provider: agentType,
+                  headSha: inputs.head_sha ?? inputs.headSha,
+                });
+              } catch (error) {
+                core?.warning?.(`Authority confirmation reconciliation unavailable: ${error.message}`);
+              }
+              if (recovery.status === 'confirmed') {
+                authorityChallengeConfirmed = true;
+              } else {
+                escalationDisposition = 'challenge-due';
+                newState.attention = {
+                  ...pendingAttention,
+                  generation: recovery.state?.generation || pendingAttention.generation,
+                  challenge_due_at: recovery.state?.due_at || pendingAttention.challenge_due_at,
+                  expires_at: recovery.state?.expires_at || pendingAttention.expires_at,
+                  confirmation_pending_label: true,
+                  next_action: 'Reconcile the unconfirmed authority challenge and workflow-owned needs-human label.',
+                };
+                if (recovery.status === 'reopened') {
+                  // Reopening is allowed only after a fresh same-head read proves
+                  // that needs-human is already absent. Never infer label ownership
+                  // from addLabels success or delete a concurrent human blocker.
+                  newState.attention.confirmation_pending_label = false;
+                }
+              }
+            }
+          }
+          if (authorityChallengeConfirmed) summaryLines.push(
             '',
             '### 🛑 Independent Authority Challenge Confirmed',
             '',
@@ -4819,7 +5071,7 @@ async function markAgentRunning({ github: rawGithub, context, core, inputs }) {
     );
   }
   const prBody = await fetchPrBody({ github, context, prNumber, core });
-  const focusSections = prBody ? normaliseChecklistSections(parseScopeTasksAcceptanceSections(prBody)) : {};
+  const focusSections = prBody ? parseKeepaliveChecklistSections(prBody) : {};
   const focusItems = extractChecklistItems(focusSections.tasks || focusSections.acceptance || '');
   const focusUnchecked = focusItems.filter((item) => !item.checked);
   const attemptedTasks = normaliseAttemptedTasks(previousState?.attempted_tasks);
@@ -5396,7 +5648,9 @@ module.exports = {
   cascadeParentCheckboxes,
   parseConfig,
   buildTaskAppendix,
+  buildTaskProgressSnapshot,
   extractSourceSection,
+  resolvePrNumber,
   evaluateKeepaliveLoop,
   markAgentRunning,
   updateKeepaliveLoopSummary,

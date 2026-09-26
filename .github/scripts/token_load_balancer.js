@@ -65,8 +65,16 @@ const invalidAuthWarningMemory = new Set();
  * Based on analysis of actual usage across workflows
  */
 const TOKEN_CAPABILITIES = {
-  GITHUB_TOKEN: ['read-repo', 'write-repo', 'pr-update', 'labels', 'comments'],
-  PAT: ['read-repo', 'write-repo', 'pr-update', 'labels', 'comments', 'cross-repo', 'workflow-dispatch'],
+  GITHUB_TOKEN: ['read-repo', 'write-repo', 'pr-update', 'labels', 'comments', 'statuses'],
+  PAT: ['read-repo', 'write-repo', 'pr-update', 'labels', 'comments', 'cross-repo', 'workflow-dispatch', 'statuses'],
+  // NO `statuses` FOR APP, and that omission is measured, not assumed. A GitHub App only holds the
+  // scopes its INSTALLATION was granted, and the installations in use here do not include Commit
+  // statuses. Observed 2026-08-23 in stranske/Orchestrator: the Gate's own status post selected
+  // WORKFLOWS_APP and got `POST /repos/.../statuses/<sha> - 403`, while the same job's
+  // GITHUB_TOKEN was granted `Statuses: write` and posted fine minutes earlier.
+  // If an App installation is later granted Commit statuses, add 'statuses' back here -- but
+  // verify against the installation, because a wrong entry here is silent: the balancer hands out
+  // a token that cannot do the job and the caller sees a 403 it did not ask for.
   APP: ['read-repo', 'write-repo', 'pr-update', 'labels', 'comments', 'workflow-dispatch'],
 };
 
@@ -140,7 +148,12 @@ const CAPABILITY_ALIASES = {
   'rate_limit:read': ['read-repo'],
   'deployments:write': ['write-repo'],
   'checks:read': ['read-repo'],
-  'statuses:write': ['write-repo'],
+  // `statuses:write` maps to its OWN capability, not to the generic `write-repo`. It aliased to
+  // `write-repo` until 2026-08-23, which all three token types claim -- so declaring
+  // `capabilities: ['statuses:write']` selected an App that cannot write statuses and the
+  // declaration was decorative. A capability alias must name what the API endpoint actually
+  // requires; collapsing a narrow scope into a broad one makes the filter unable to filter.
+  'statuses:write': ['statuses'],
 };
 
 function normalizeCapabilities(capabilities = []) {
@@ -451,6 +464,7 @@ async function refreshAllRateLimits({ github, core, _Octokit = null }) {
         tokenInfo, github, core, Octokit,
       });
       tokenInfo.rateLimit = rateLimit;
+      tokenInfo.graphqlRateLimit = rateLimit.graphql || null;
       results.push({ id, ...rateLimit });
     } catch (error) {
       core?.warning?.(`Failed to check rate limit for ${id}: ${error.message}`);
@@ -619,6 +633,7 @@ async function checkTokenRateLimit({ tokenInfo, github, core, Octokit }) {
   try {
     const { data } = await octokit.rateLimit.get();
     const core_limit = data.resources.core;
+    const graphql_limit = data.resources.graphql;
 
     const percentUsed = core_limit.limit > 0 
       ? (core_limit.used / core_limit.limit) * 100
@@ -633,6 +648,14 @@ async function checkTokenRateLimit({ tokenInfo, github, core, Octokit }) {
       percentUsed,
       percentRemaining: 100 - percentUsed,
       invalidAuth: false,
+      graphql: graphql_limit ? {
+        limit: graphql_limit.limit,
+        remaining: graphql_limit.remaining,
+        used: graphql_limit.used,
+        reset: graphql_limit.reset * 1000,
+        percentRemaining: graphql_limit.limit > 0
+          ? (graphql_limit.remaining / graphql_limit.limit) * 100 : 0,
+      } : null,
     };
   } catch (error) {
     const isInvalidAuth =
@@ -724,7 +747,7 @@ async function mintAppToken({ tokenInfo, core }) {
  * @param {number} options.minRemaining - Minimum remaining calls needed
  * @returns {Object} { token, source, remaining, percentUsed }
  */
-async function getOptimalToken({ github, core, capabilities = [], preferredType = null, task = null, minRemaining = 100 }) {
+async function getOptimalToken({ github, core, capabilities = [], preferredType = null, preferredSource = null, excludeSources = [], task = null, minRemaining = 100, rateResource = 'core' }) {
   // Refresh if stale
   const now = Date.now();
   if (now - tokenRegistry.lastRefresh > tokenRegistry.refreshInterval) {
@@ -734,9 +757,10 @@ async function getOptimalToken({ github, core, capabilities = [], preferredType 
   // If a specific task is requested, first check for exclusive tokens
   if (task) {
     for (const [id, spec] of Object.entries(TOKEN_SPECIALIZATIONS)) {
-      if (spec.exclusive && spec.primaryTasks.includes(task)) {
+      if (spec.exclusive && spec.primaryTasks.includes(task) && !excludeSources.includes(id)) {
         const tokenInfo = tokenRegistry.tokens.get(id);
-        if (tokenInfo && (tokenInfo.rateLimit?.remaining ?? 0) >= minRemaining) {
+        const budget = rateResource === 'graphql' ? tokenInfo?.graphqlRateLimit : tokenInfo?.rateLimit;
+        if (tokenInfo && (budget?.remaining ?? 0) >= minRemaining) {
           core?.info?.(`Using exclusive token ${id} for task '${task}'`);
           let token = tokenInfo.token;
           if (tokenInfo.type === 'APP' && !token) {
@@ -756,9 +780,9 @@ async function getOptimalToken({ github, core, capabilities = [], preferredType 
               token,
               source: id,
               type: tokenInfo.type,
-              remaining: tokenInfo.rateLimit?.remaining ?? 0,
-              percentRemaining: tokenInfo.rateLimit?.percentRemaining ?? 0,
-              percentUsed: tokenInfo.rateLimit?.percentUsed ?? 0,
+              remaining: budget?.remaining ?? 0,
+              percentRemaining: budget?.percentRemaining ?? 0,
+              percentUsed: 100 - (budget?.percentRemaining ?? 0),
               exclusive: true,
               task,
             };
@@ -773,6 +797,7 @@ async function getOptimalToken({ github, core, capabilities = [], preferredType 
   const candidates = [];
   
   for (const [id, tokenInfo] of tokenRegistry.tokens) {
+    if (excludeSources.includes(id)) continue;
     if (tokenInfo.rateLimit?.invalidAuth) {
       core?.debug?.(`Skipping ${id}: credentials marked invalid`);
       continue;
@@ -788,14 +813,15 @@ async function getOptimalToken({ github, core, capabilities = [], preferredType 
     }
     
     // Check if token has enough remaining capacity
-    const remaining = tokenInfo.rateLimit?.remaining ?? 0;
+    const budget = rateResource === 'graphql' ? tokenInfo.graphqlRateLimit : tokenInfo.rateLimit;
+    const remaining = budget?.remaining ?? 0;
     if (remaining < minRemaining) {
       core?.debug?.(`Skipping ${id}: only ${remaining} remaining (need ${minRemaining})`);
       continue;
     }
     
     // Calculate score based on remaining capacity, priority, and task match
-    const percentRemaining = tokenInfo.rateLimit?.percentRemaining ?? 0;
+    const percentRemaining = budget?.percentRemaining ?? 0;
     const priorityBonus = tokenInfo.priority * 10;
     const typeBonus = preferredType && tokenInfo.type === preferredType ? 20 : 0;
     
@@ -825,7 +851,9 @@ async function getOptimalToken({ github, core, capabilities = [], preferredType 
   }
   
   // Sort by score (highest first)
-  candidates.sort((a, b) => b.score - a.score);
+  candidates.sort((a, b) =>
+    Number(b.id === preferredSource) - Number(a.id === preferredSource) || b.score - a.score
+  );
 
   while (candidates.length > 0) {
     const best = candidates[0];
@@ -853,7 +881,7 @@ async function getOptimalToken({ github, core, capabilities = [], preferredType 
       type: best.tokenInfo.type,
       remaining: best.remaining,
       percentRemaining: best.percentRemaining,
-      percentUsed: best.tokenInfo.rateLimit?.percentUsed ?? 0,
+      percentUsed: 100 - best.percentRemaining,
       isPrimary: best.isPrimary,
       task,
     };
@@ -869,16 +897,20 @@ async function getOptimalToken({ github, core, capabilities = [], preferredType 
  * 
  * @param {string} tokenId - Token identifier
  * @param {number} callsMade - Number of API calls made
+ * @param {'core'|'graphql'} rateResource - Budget consumed by the call
  */
-function updateTokenUsage(tokenId, callsMade = 1) {
+function updateTokenUsage(tokenId, callsMade = 1, rateResource = 'core') {
   const tokenInfo = tokenRegistry.tokens.get(tokenId);
-  if (tokenInfo && tokenInfo.rateLimit) {
-    tokenInfo.rateLimit.remaining = Math.max(0, tokenInfo.rateLimit.remaining - callsMade);
-    tokenInfo.rateLimit.used += callsMade;
-    tokenInfo.rateLimit.percentUsed = tokenInfo.rateLimit.limit > 0
-      ? ((tokenInfo.rateLimit.used / tokenInfo.rateLimit.limit) * 100).toFixed(1)
+  const budget = rateResource === 'graphql' ? tokenInfo?.graphqlRateLimit : tokenInfo?.rateLimit;
+  if (budget) {
+    const priorUsed = Number.isFinite(budget.used)
+      ? budget.used : Math.max(0, (budget.limit || 0) - budget.remaining);
+    budget.remaining = Math.max(0, budget.remaining - callsMade);
+    budget.used = priorUsed + callsMade;
+    budget.percentUsed = budget.limit > 0
+      ? ((budget.used / budget.limit) * 100).toFixed(1)
       : 0;
-    tokenInfo.rateLimit.percentRemaining = 100 - tokenInfo.rateLimit.percentUsed;
+    budget.percentRemaining = 100 - budget.percentUsed;
   }
 }
 
@@ -888,25 +920,40 @@ function updateTokenUsage(tokenId, callsMade = 1) {
  * 
  * @param {string} tokenId - Token identifier
  * @param {Object} headers - Response headers with x-ratelimit-* values
+ * @param {'core'|'graphql'} rateResource - Fallback resource when headers omit it
  */
-function updateFromHeaders(tokenId, headers) {
+function updateFromHeaders(tokenId, headers, rateResource = 'core') {
   const tokenInfo = tokenRegistry.tokens.get(tokenId);
   if (!tokenInfo) return;
+  const headerResource = String(headers['x-ratelimit-resource'] || '').toLowerCase();
+  const resource = ['core', 'graphql'].includes(headerResource) ? headerResource : rateResource;
+  const budgetKey = resource === 'graphql' ? 'graphqlRateLimit' : 'rateLimit';
   
   const remaining = parseInt(headers['x-ratelimit-remaining'], 10);
   const limit = parseInt(headers['x-ratelimit-limit'], 10);
   const used = parseInt(headers['x-ratelimit-used'], 10);
   const reset = parseInt(headers['x-ratelimit-reset'], 10);
   
-  if (!isNaN(remaining) && !isNaN(limit)) {
-    tokenInfo.rateLimit = {
+  if (Number.isFinite(remaining) && remaining >= 0 && Number.isFinite(limit) && limit > 0) {
+    tokenInfo[budgetKey] = {
       limit,
       remaining,
       used: used || (limit - remaining),
-      reset: reset ? reset * 1000 : tokenInfo.rateLimit.reset,
+      reset: reset ? reset * 1000 : tokenInfo[budgetKey]?.reset,
       checked: Date.now(),
       percentUsed: (limit - remaining) / limit * 100,
       percentRemaining: (remaining / limit) * 100,
+    };
+  } else if (remaining === 0) {
+    const budget = tokenInfo[budgetKey] || {};
+    tokenInfo[budgetKey] = {
+      ...budget,
+      remaining: 0,
+      used: budget.limit > 0 ? budget.limit : budget.used,
+      reset: reset ? reset * 1000 : budget.reset,
+      checked: Date.now(),
+      percentUsed: 100,
+      percentRemaining: 0,
     };
   }
 }

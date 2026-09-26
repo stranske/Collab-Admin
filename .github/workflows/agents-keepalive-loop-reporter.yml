@@ -92,12 +92,12 @@ jobs:
           KEEPALIVE_APP_ID: ${{ secrets.KEEPALIVE_APP_ID || '' }}
           KEEPALIVE_APP_PRIVATE_KEY: ${{ secrets.KEEPALIVE_APP_PRIVATE_KEY || '' }}
         with:
-          app-id: ${{ env.KEEPALIVE_APP_ID }}
+          client-id: ${{ env.KEEPALIVE_APP_ID }}
           private-key: ${{ env.KEEPALIVE_APP_PRIVATE_KEY }}
           owner: ${{ github.repository_owner }}
           repositories: ${{ github.event.repository.name }}
           permission-actions: write
-          permission-contents: read
+          permission-contents: write
           permission-issues: write
           permission-pull-requests: read
 
@@ -115,12 +115,12 @@ jobs:
           WORKFLOWS_APP_ID: ${{ secrets.WORKFLOWS_APP_ID || '' }}
           WORKFLOWS_APP_PRIVATE_KEY: ${{ secrets.WORKFLOWS_APP_PRIVATE_KEY || '' }}
         with:
-          app-id: ${{ env.WORKFLOWS_APP_ID }}
+          client-id: ${{ env.WORKFLOWS_APP_ID }}
           private-key: ${{ env.WORKFLOWS_APP_PRIVATE_KEY }}
           owner: ${{ github.repository_owner }}
           repositories: ${{ github.event.repository.name }}
           permission-actions: write
-          permission-contents: read
+          permission-contents: write
           permission-issues: write
           permission-pull-requests: read
 
@@ -190,6 +190,7 @@ jobs:
 
             const inputs = {
               pr_number: prNumber,
+              head_sha: run.head_sha || '',
               action: 'run',
               reason: '',
               gate_conclusion: state.gate_conclusion || '',

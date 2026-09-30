@@ -115,7 +115,7 @@ rpds-py==0.30.0
     # via
     #   jsonschema
     #   referencing
-ruff==0.16.7
+ruff==0.16.8
     # via collab-admin (pyproject.toml)
 six==1.17.0
     # via python-dateutil

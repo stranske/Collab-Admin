@@ -29,6 +29,8 @@ jobs:
   create-new-pr:
     if: github.event.label.name == 'verify:create-new-pr'
     runs-on: ubuntu-latest
+    env:
+      HAS_WORKFLOWS_APP_CREDS: ${{ secrets.WORKFLOWS_APP_ID != '' && secrets.WORKFLOWS_APP_PRIVATE_KEY != '' }}
     steps:
       - name: Check PR is merged
         id: check-merged
@@ -45,21 +47,46 @@ jobs:
             core.setOutput('pr_number', pr.number);
             core.setOutput('pr_title', pr.title);
 
+      - name: Mint scoped GitHub App token
+        id: app_token
+        if: steps.check-merged.outputs.merged == 'true' && env.HAS_WORKFLOWS_APP_CREDS == 'true'
+        continue-on-error: true
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3
+        with:
+          app-id: ${{ secrets.WORKFLOWS_APP_ID }}
+          private-key: ${{ secrets.WORKFLOWS_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: |
+            ${{ github.event.repository.name }}
+            Workflows
+          permission-contents: read
+          permission-issues: write
+          permission-actions: write
+
       - name: Select GitHub token
         id: select-token
         if: steps.check-merged.outputs.merged == 'true'
         env:
+          APP_TOKEN: ${{ steps.app_token.outputs.token }}
+          APP_TOKEN_OUTCOME: ${{ steps.app_token.outcome }}
           OWNER_PR_PAT: ${{ secrets.OWNER_PR_PAT }}
           SERVICE_BOT_PAT: ${{ secrets.SERVICE_BOT_PAT }}
           GITHUB_TOKEN: ${{ github.token }}
         run: |
-          if [ -n "$OWNER_PR_PAT" ]; then
+          if [ "$APP_TOKEN_OUTCOME" = failure ]; then
+            echo "::warning::Workflows App token mint failed; using the configured fallback token."
+          fi
+          if [ -n "$APP_TOKEN" ]; then
+            echo "token=$APP_TOKEN" >> "$GITHUB_OUTPUT"
+            echo "source=workflows-app" >> "$GITHUB_OUTPUT"
+          elif [ -n "$OWNER_PR_PAT" ]; then
             echo "token=$OWNER_PR_PAT" >> "$GITHUB_OUTPUT"
             echo "source=owner-pat" >> "$GITHUB_OUTPUT"
           elif [ -n "$SERVICE_BOT_PAT" ]; then
             echo "token=$SERVICE_BOT_PAT" >> "$GITHUB_OUTPUT"
             echo "source=service-bot" >> "$GITHUB_OUTPUT"
           else
+            echo "::warning::Using GITHUB_TOKEN: follow-up issue events will not trigger other workflows; the explicit auto-pilot dispatch below must succeed."
             echo "token=$GITHUB_TOKEN" >> "$GITHUB_OUTPUT"
             echo "source=github-token" >> "$GITHUB_OUTPUT"
           fi
@@ -86,8 +113,26 @@ jobs:
       - name: Setup API client
         uses: ./.github/actions/setup-api-client
         with:
-          secrets: ${{ toJSON(secrets) }}
+          # Named secret inputs instead of `secrets: ${{ toJSON(secrets) }}`.
+          # setup-api-client jq-extracts exactly these keys from that blob and
+          # already declares each as an individual input, so this is
+          # behaviour-preserving: an absent secret resolves to empty either way.
+          # Removing the whole-secrets-context handoff is what cleared GitHub's
+          # suspicious-workflow hold on agents-dedup (#3185): it then ran at
+          # run_attempt 1 with nothing approved, after 22 days held.
           github_token: ${{ github.token }}
+          service_bot_pat: ${{ secrets.SERVICE_BOT_PAT }}
+          actions_bot_pat: ${{ secrets.ACTIONS_BOT_PAT }}
+          owner_pr_pat: ${{ secrets.OWNER_PR_PAT }}
+          agents_automation_pat: ${{ secrets.AGENTS_AUTOMATION_PAT }}
+          keepalive_app_id: ${{ secrets.KEEPALIVE_APP_ID }}
+          keepalive_app_private_key: ${{ secrets.KEEPALIVE_APP_PRIVATE_KEY }}
+          gh_app_id: ${{ secrets.GH_APP_ID }}
+          gh_app_private_key: ${{ secrets.GH_APP_PRIVATE_KEY }}
+          app_1_id: ${{ secrets.APP_1_ID }}
+          app_1_private_key: ${{ secrets.APP_1_PRIVATE_KEY }}
+          app_2_id: ${{ secrets.APP_2_ID }}
+          app_2_private_key: ${{ secrets.APP_2_PRIVATE_KEY }}
 
 
 
@@ -567,7 +612,9 @@ jobs:
           PYTHONPATH: ${{ github.workspace }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           CLAUDE_API_STRANSKE: ${{ secrets.CLAUDE_API_STRANSKE }}
-          GITHUB_TOKEN: ${{ steps.select-token.outputs.token }}
+          # GitHub Models needs the workflow token's models: read grant.
+          # The selected App/PAT token is reserved for issue and dispatch APIs.
+          GITHUB_TOKEN: ${{ github.token }}
           ORIGINAL_ISSUE_NUMBER: ${{ steps.collect.outputs.original_issue_number }}
           ORIGINAL_ISSUE_TITLE: ${{ steps.collect.outputs.original_issue_title }}
           PR_NUMBER: ${{ steps.check-merged.outputs.pr_number }}

@@ -35,7 +35,7 @@ This guide explains how to use the automated workflows in your repository. All w
 **What Happens:**
 - Issue is analyzed for clarity and completeness
 - Issue is formatted to standard template
-- Codex agent creates a branch and opens a draft PR
+- Codex agent creates a branch and opens a ready-for-review PR
 - Agent works through the tasks automatically
 - Keepalive monitors and continues work until complete
 - Verification runs after merge
@@ -192,7 +192,7 @@ Issue: "Add user authentication"
 
 | Event | Workflows That Trigger |
 |-------|----------------------|
-| PR opened | Gate (CI), PR Meta, Agents Guard |
+| PR opened | Gate (CI), Agents 80 PR Event Hub, Agents Guard |
 | Label added: `autofix` | Autofix loop |
 | Label added: `agents:keepalive` | Enables keepalive loop (runs on Gate workflow_run) |
 | Label removed: `agents:paused` | Keepalive resumes |
@@ -264,10 +264,10 @@ Extracts suggestions from the analysis comment and:
 **Assigns Codex agent to create a PR**
 
 1. Creates branch `codex/issue-<number>`
-2. Opens draft PR linked to issue
+2. Opens a ready-for-review PR linked to the issue
 3. Agent begins implementing tasks
 4. Keeps working through keepalive system
-5. Marks PR ready when complete
+5. Keeps dependency and progress state in labels, checks, and the PR body
 
 **Prerequisites:**
 - Issue must be formatted (`agents:formatted` label)
@@ -459,6 +459,22 @@ Orchestrates entire pipeline:
 ---
 
 ## Troubleshooting
+
+### Auto-pilot recovery procedures
+
+When the issue optimizer detects more than three runs for the same issue in one
+hour, it applies `agents:auto-pilot-pause` to stop the recursion.
+
+1. Inspect the recent `agents-issue-optimizer.yml` runs and the issue body for
+   repeated tasks, malformed sections, or a failing formatter.
+2. Repair the issue body or the Workflows source that caused the repeated run.
+3. Confirm that the issue is no longer being redispatched and that its body is
+   valid before resuming automation.
+4. Remove `agents:auto-pilot-pause` to allow the issue through the normal format
+   and auto-pilot gates again.
+
+Do not remove the pause label before correcting the cause; doing so can restart
+the same recursion and exhaust the bounded retry cap again.
 
 ### Issue: Agent Not Starting
 
@@ -675,7 +691,7 @@ If concerns → Add verify:create-issue → New issue auto-created
 
 **Resources:**
 - [Full Documentation](https://github.com/stranske/Workflows/tree/main/docs)
-- [Label Reference](https://github.com/stranske/Workflows/blob/main/docs/LABELS.md)
+- [Consumer Label Reference](https://github.com/stranske/Workflows/blob/main/templates/consumer-repo/docs/LABELS.md)
 - [Agents Policy](https://github.com/stranske/Workflows/blob/main/docs/AGENTS_POLICY.md)
 
 **For Issues:**
@@ -1151,18 +1167,17 @@ that workflow actually exists in the consumer checkout.
 ---
 
 ### `maint-65-sync-label-docs.yml` - Sync Label Documentation
-**Purpose:** Keeps label docs in sync with actual labels
+**Purpose:** Copies the canonical consumer label guide to registered repositories
 
-**Trigger:** On label changes or manual
+**Trigger:** When `templates/consumer-repo/docs/LABELS.md` changes, or manually
 
 **What It Does:**
-1. Fetches current labels from repos
-2. Updates `docs/LABELS.md`
-3. Adds descriptions for new labels
-4. Marks deprecated labels
-5. Commits documentation
+1. Loads the shared registered consumer-repository list
+2. Copies `templates/consumer-repo/docs/LABELS.md` to consumer `docs/LABELS.md`
+3. Skips repositories whose copy is already identical
+4. Commits and pushes changed consumer copies, or reports a dry run
 
-**Use When:** After adding/removing labels
+**Use When:** After updating the consumer label guide or when reconciling label-doc drift
 
 ---
 

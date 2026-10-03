@@ -141,13 +141,17 @@ def _resolve_slots() -> list[SlotDefinition]:
 
 
 def _is_reasoning_model(model: str) -> bool:
-    """Return True if the model is an OpenAI reasoning model that rejects temperature.
+    """Return True if the model rejects a nondefault temperature.
 
-    Supported naming pattern: `o` + digits, with optional suffixes. Examples: `o1`,
-    `o1-preview`, `o1-preview-2024-09-12`, `o3`, `o3-mini`, `o3-pro`, `o4-mini`,
-    `o4-mini-deep-research`. Non-matching examples: `o`, `o-1`, `openai-o1`, `oasis-1`.
+    The MAINT-78 API confirmation observed HTTP 400 for gpt-5.6-terra with
+    temperature=0.1. The GPT-5.6 family therefore uses the provider default.
+    O-series reasoning models also reject this sampling control.
     """
     name = model.lower().strip()
+    if name.startswith("openai/"):
+        name = name.removeprefix("openai/")
+    if name.startswith(("gpt-5.6-", "gpt-6")):
+        return True
     # o-series reasoning models use an `o` prefix followed by digits with optional
     # hyphen-separated suffixes: o1, o1-preview, o1-preview-2024-09-12, o3, o3-mini,
     # o3-pro, o4-mini, o4-mini-deep-research.
@@ -166,6 +170,9 @@ def _build_openai_client(
     if model.lower().startswith("gpt-6-astra"):
         kwargs["use_responses_api"] = True
         kwargs["reasoning"] = {"effort": "high"}
+    elif model.lower().startswith("gpt-6"):
+        # GPT-6 reasoning models reject sampling controls such as temperature.
+        kwargs["use_responses_api"] = True
     elif not _is_reasoning_model(model):
         kwargs["temperature"] = 0.1
     return chat_openai(**kwargs)
@@ -178,13 +185,25 @@ def _anthropic_rejects_temperature(model: str) -> bool:
     custom ``temperature`` is set. Confirmed via the maint-78 verifier pilot
     (2026-07-24): ``claude-opus-4-8`` and ``claude-sonnet-5`` (while ``claude-opus-4-6``
     still accepts ``temperature=0.1``). Matches Opus 4.8 explicitly plus the Claude 5
-    family (``claude-<name>-5...``); minor-version ``-5`` suffixes like
+    family (``claude-<name>-5...``, which also covers ``claude-sonnet-5-5`` / ``claude-opus-5-5``); minor-version ``-5`` suffixes like
     ``claude-haiku-4-5`` are NOT matched. Interim, evidence-based guard; the durable
     capability-aware handling (e.g. retry-on-400) is tracked in stranske/Workflows#2819.
     """
     name = model.lower().strip()
-    if name == "claude-opus-4-8":
-        return True
+    return name == "claude-opus-4-8" or _anthropic_is_claude5_family(name)
+
+
+# langchain-anthropic resolves a missing ``max_tokens`` from its bundled model profiles and
+# falls back to 4096 for any model it does not know. The Claude 5 family always thinks, and
+# thinking tokens count against ``max_tokens``, so a model newer than the pinned package
+# (``claude-sonnet-5-5``, ``claude-opus-5-5`` under langchain-anthropic 1.5.4) would have its
+# answer truncated. Pin the ceiling explicitly for that family; 128000 is what the bundled
+# ``claude-sonnet-5`` profile already resolves to, so the incumbent is unchanged.
+_ANTHROPIC_THINKING_MAX_TOKENS = 128000
+
+
+def _anthropic_is_claude5_family(model: str) -> bool:
+    name = model.lower().strip()
     return any(
         name.startswith(f"claude-{family}-5") for family in ("opus", "sonnet", "haiku", "fable")
     )
@@ -201,6 +220,8 @@ def _build_anthropic_client(
     }
     if not _anthropic_rejects_temperature(model):
         kwargs["temperature"] = 0.1
+    if _anthropic_is_claude5_family(model):
+        kwargs["max_tokens"] = _ANTHROPIC_THINKING_MAX_TOKENS
     return chat_anthropic(**kwargs)
 
 

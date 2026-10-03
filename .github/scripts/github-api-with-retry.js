@@ -17,7 +17,100 @@
  * so all GitHub-API retry/pagination/backoff helpers live in one module.
  */
 
+const fs = require('fs');
+const path = require('path');
+const crypto = require('crypto');
 const { classifyError, ERROR_CATEGORIES } = require('./error_classifier');
+
+function recordRateLimitIncident(error, options = {}, contextInfo = {}) {
+  try {
+    const explicitLogPath = options.incidentLogPath ||
+      process.env.RATE_LIMIT_INCIDENT_LOG_PATH ||
+      process.env.RATE_LIMIT_INCIDENTS_PATH ||
+      null;
+    // Outside Actions (local runs, unrelated scripts, most unit tests), don't
+    // default to writing under artifacts/ unless a path was explicitly given.
+    const logPath = explicitLogPath ||
+      (process.env.GITHUB_ACTIONS === 'true' ? 'artifacts/rate-limit-incidents.ndjson' : null);
+    if (!logPath) {
+      return;
+    }
+
+    const dir = path.dirname(logPath);
+    if (dir && !fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+
+    const headers = normaliseHeaders(error?.response?.headers || error?.headers);
+    const rateLimitInfo = extractRateLimitInfo(headers);
+    const status = error?.status || error?.response?.status || null;
+
+    const rawMessage = String(error?.message || error?.response?.data?.message || '');
+    let evidenceExcerpt = rawMessage;
+    if (process.env.GH_TOKEN) {
+      evidenceExcerpt = evidenceExcerpt.split(process.env.GH_TOKEN).join('[REDACTED]');
+    }
+    if (process.env.GITHUB_TOKEN) {
+      evidenceExcerpt = evidenceExcerpt.split(process.env.GITHUB_TOKEN).join('[REDACTED]');
+    }
+    evidenceExcerpt = evidenceExcerpt
+      .replace(/(?:api[_-]?key|token|secret|password)\s*(?:=|:|\s)\s*[^\s,;]+/gi, '[REDACTED]')
+      .replace(/(?:github_pat_|sk-)[A-Za-z0-9_-]{12,}/gi, '[REDACTED]');
+    if (evidenceExcerpt.length > 500) {
+      evidenceExcerpt = evidenceExcerpt.slice(0, 500) + '...[TRUNCATED]';
+    }
+    const subcategory = contextInfo.errorCategory ||
+      (isSecondaryRateLimitError(error)
+        ? 'secondary_rate_limit'
+        : isRateLimitError(error)
+          ? 'primary_rate_limit'
+          : 'transient_error');
+    const surface = options.task || contextInfo.task || 'github-api-with-retry';
+    const runId = process.env.GITHUB_RUN_ID ||
+      `sync:${crypto.createHash('sha256').update(rawMessage).digest('hex').slice(0, 16)}`;
+    const idempotencyKey = [
+      runId,
+      'github-actions',
+      'rate_limit',
+      surface,
+      contextInfo.tokenSource || options.tokenSource || 'unknown',
+    ].join('|');
+
+    const incident = {
+      schema: 'rate-limit-incident/v1',
+      incident_id: crypto.createHash('sha256').update(idempotencyKey).digest('hex').slice(0, 16),
+      idempotency_key: idempotencyKey,
+      ts: Math.floor(Date.now() / 1000),
+      agent: 'github-actions',
+      provider: 'github',
+      surface,
+      category: 'rate_limit',
+      subcategory,
+      status: 'exhausted',
+      target: process.env.GITHUB_REPOSITORY || null,
+      credential_pool: contextInfo.tokenSource || options.tokenSource || null,
+      resource: headers['x-ratelimit-resource'] || 'core',
+      reroute: contextInfo.reroute || null,
+      evidence_hash: crypto.createHash('sha256').update(rawMessage).digest('hex').slice(0, 16),
+      evidence_excerpt: evidenceExcerpt,
+      remaining: rateLimitInfo.remaining,
+      limit: rateLimitInfo.limit,
+      reset_at: rateLimitInfo.reset,
+      run_id: runId,
+      extra: {
+        token_source: contextInfo.tokenSource || options.tokenSource || null,
+        http_status: Number.isFinite(status) ? status : null,
+        workflow: process.env.GITHUB_WORKFLOW || null,
+      },
+    };
+
+    fs.appendFileSync(logPath, JSON.stringify(incident) + '\n', 'utf8');
+  } catch (err) {
+    if (options.core && typeof options.core.warning === 'function') {
+      options.core.warning(`Failed to record rate limit incident: ${err.message}`);
+    }
+  }
+}
 
 // NOTE: `github-rate-limited-wrapper.js` requires THIS module
 // (createTokenAwareRetry), so it is required lazily inside the functions that
@@ -26,6 +119,8 @@ const { classifyError, ERROR_CATEGORIES } = require('./error_classifier');
 
 const DEFAULT_BASE_DELAY_MS = 1000;
 const DEFAULT_MAX_DELAY_MS = 30000;
+/** Honor Retry-After / rate-limit reset without the exponential-backoff cap. */
+const RATE_LIMIT_BACKOFF_CAP_MS = 3_600_000;
 const DEFAULT_MAX_RETRIES = 3;
 const RATE_LIMIT_THRESHOLD = 500;
 
@@ -62,18 +157,21 @@ function hasRateLimitHeaders(headers) {
   if (!headers || typeof headers !== 'object') {
     return false;
   }
-  const rateLimitKeys = [
-    'x-ratelimit-remaining',
-    'x-ratelimit-limit',
-    'x-ratelimit-used',
-    'x-ratelimit-reset',
-  ];
-  return rateLimitKeys.some((key) => Object.prototype.hasOwnProperty.call(headers, key));
+  const { remaining, limit } = extractRateLimitInfo(headers);
+  return remaining === 0 || (remaining !== null && remaining >= 0 && limit !== null && limit > 0);
 }
 
 function isRateLimitError(error) {
   if (!error) {
     return false;
+  }
+  const graphqlErrors = error.errors || error?.response?.data?.errors;
+  if (Array.isArray(graphqlErrors) && graphqlErrors.some((item) =>
+    item?.type === 'RATE_LIMIT' || item?.type === 'RATE_LIMITED'
+      || item?.code === 'graphql_rate_limit'
+      || item?.extensions?.code === 'graphql_rate_limit'
+  )) {
+    return true;
   }
   const status = error.status || error?.response?.status;
   if (status === 429) {
@@ -223,6 +321,7 @@ function resolveOctokitFactory({ github, getOctokit, Octokit }) {
  * @param {string[]} options.capabilities - Required token capabilities
  * @param {string} options.preferredType - Prefer APP or PAT
  * @param {string} options.task - Task name for specialization matching
+ * @param {string} options.preferredSource - Exact token source to prefer when eligible
  * @param {number} options.minRemaining - Minimum remaining calls needed
  * @param {Function} options.onTokenSwitch - Callback on token switch
  * @param {boolean} options.allowNonIdempotentRetries - Allow retries for non-idempotent methods
@@ -242,8 +341,10 @@ async function withRetry(fn, options = {}) {
     tokenSource = null,
     capabilities = [],
     preferredType = null,
+    preferredSource = null,
     task = null,
     minRemaining = 100,
+    rateResource = 'core',
     onTokenSwitch = null,
     allowNonIdempotentRetries = false,
   } = options;
@@ -264,8 +365,11 @@ async function withRetry(fn, options = {}) {
         core,
         capabilities,
         preferredType,
+        preferredSource,
+        excludeSources: currentTokenSource ? [currentTokenSource] : [],
         task,
         minRemaining,
+        rateResource,
       });
     } catch (error) {
       logWithCore(core, 'warning', `Token registry selection failed: ${error.message}`);
@@ -316,10 +420,10 @@ async function withRetry(fn, options = {}) {
         const info = extractRateLimitInfo(headers);
 
         if (hasRateLimitHeaders(headers) && typeof tokenRegistry.updateFromHeaders === 'function') {
-          tokenRegistry.updateFromHeaders(currentTokenSource, headers);
+          tokenRegistry.updateFromHeaders(currentTokenSource, headers, rateResource);
           logTokenUsage(core, currentTokenSource, info, 'response');
         } else if (typeof tokenRegistry.updateTokenUsage === 'function') {
-          tokenRegistry.updateTokenUsage(currentTokenSource, 1);
+          tokenRegistry.updateTokenUsage(currentTokenSource, 1, rateResource);
           logTokenUsage(core, currentTokenSource, null, 'response');
         }
       }
@@ -343,19 +447,29 @@ async function withRetry(fn, options = {}) {
       if (tokenRegistry && currentTokenSource) {
         const info = extractRateLimitInfo(headers);
         if (hasRateLimitHeaders(headers) && typeof tokenRegistry.updateFromHeaders === 'function') {
-          tokenRegistry.updateFromHeaders(currentTokenSource, headers);
+          tokenRegistry.updateFromHeaders(currentTokenSource, headers, rateResource);
           logTokenUsage(core, currentTokenSource, info, 'error');
         } else if (typeof tokenRegistry.updateTokenUsage === 'function') {
-          tokenRegistry.updateTokenUsage(currentTokenSource, 1);
+          tokenRegistry.updateTokenUsage(currentTokenSource, 1, rateResource);
           logTokenUsage(core, currentTokenSource, null, 'error');
         }
       }
 
       if (integrationPermissionError && task === 'gate-commit-status') {
+        // NAME THE TOKEN. This swallow is deliberate -- a status post must not fail the Gate --
+        // but until 2026-08-23 it said only "blocked by permissions", which reads as a repo
+        // misconfiguration and sent a reader to check `permissions:` blocks that were already
+        // correct. The real cause is WHICH token was selected, so the message has to carry it:
+        // a green run leaving a red status is otherwise indistinguishable from a settings problem.
+        const refusedBy = currentTokenSource || 'the workflow token';
         logWithCore(
           core,
           'warning',
-          'Gate commit status update blocked by permissions; leaving existing status untouched.'
+          `Gate commit status update blocked by permissions (token: ${refusedBy}); `
+          + 'leaving the EXISTING status in place, so a stale one can outlive this run. '
+          + 'That token lacks the `statuses` scope: declare '
+          + "`capabilities: ['statuses:write']` or pin the call to the workflow token with "
+          + '`env: {}`.'
         );
         return null;
       }
@@ -371,6 +485,20 @@ async function withRetry(fn, options = {}) {
         if (switched) {
           continue;
         }
+        // Primary rate limit exhausted and no alternative token found -> FAIL FAST
+        const errorMsg = `Primary rate limit exhausted and no alternative token found. Token: ${currentTokenSource || 'unknown'}.`;
+        logWithCore(
+          core,
+          'error',
+          `${errorMsg} Check token rotation and rate limit budgets.`
+        );
+        recordRateLimitIncident(error, options, {
+          task,
+          tokenSource: currentTokenSource,
+          errorCategory: 'primary_rate_limit_exhausted',
+          reroute: 'caller_circuit_break',
+        });
+        throw error;
       }
 
       // Don't retry if we've exhausted attempts
@@ -405,6 +533,14 @@ async function withRetry(fn, options = {}) {
           `${errorMsg}. Token: ${currentTokenSource || 'unknown'}. ` +
           annotationDetails
         );
+        if (secondaryRateLimit || rateLimitError) {
+          recordRateLimitIncident(error, options, {
+            task,
+            tokenSource: currentTokenSource,
+            errorCategory: secondaryRateLimit ? 'secondary_rate_limit' : 'primary_rate_limit',
+            reroute: secondaryRateLimit ? 'bounded_backoff_exhausted' : 'caller_circuit_break',
+          });
+        }
         throw error;
       }
 
@@ -529,8 +665,10 @@ async function createTokenAwareRetry(options = {}) {
     Octokit = null,
     capabilities = [],
     preferredType = null,
+    preferredSource = null,
     task = null,
     minRemaining = 100,
+    rateResource = 'core',
     githubToken = null,
   } = options;
 
@@ -580,8 +718,10 @@ async function createTokenAwareRetry(options = {}) {
         core,
         capabilities,
         preferredType,
+        preferredSource,
         task,
         minRemaining,
+        rateResource,
       });
       if (selection?.token) {
         currentGithub = octokitFactory(selection.token);
@@ -608,8 +748,10 @@ async function createTokenAwareRetry(options = {}) {
       getOctokit: octokitFactory,
       capabilities,
       preferredType,
+      preferredSource,
       task,
       minRemaining,
+      rateResource,
       tokenSource: currentTokenSource,
       onTokenSwitch,
       ...overrideOptions,
@@ -662,27 +804,46 @@ function resolveMaxRetries(operation, maxRetriesByOperation) {
   return maxRetriesByOperation.unknown ?? DEFAULT_RETRY_LIMITS.unknown;
 }
 
-function calculateWaitUntilReset(resetTimestamp, nowMs) {
+function calculateWaitUntilReset(resetTimestamp, nowMs, capMs = RATE_LIMIT_BACKOFF_CAP_MS) {
   if (!Number.isFinite(resetTimestamp)) {
     return DEFAULT_BASE_DELAY_MS;
   }
   const now = Number.isFinite(nowMs) ? nowMs : Date.now();
   const resetTime = resetTimestamp * 1000;
   const waitTime = resetTime - now;
-  return Math.max(1000, Math.min(waitTime + 1000, 60000));
+  return Math.max(1000, Math.min(waitTime + 1000, capMs));
+}
+
+function headersObjectFromFetchResponse(response) {
+  const headers = {};
+  if (response?.headers?.forEach) {
+    response.headers.forEach((value, key) => {
+      headers[key] = value;
+    });
+  }
+  return headers;
+}
+
+function attachFetchResponseToError(error, response) {
+  error.status = response.status;
+  error.response = {
+    status: response.status,
+    headers: headersObjectFromFetchResponse(response),
+  };
+  return error;
 }
 
 function computeRetryDelayMs({ error, attempt, baseDelay, maxDelay, backoffFn, nowMs }) {
   const headers = normaliseHeaders(error?.response?.headers || error?.headers);
   const retryAfter = parseInt(headers['retry-after'], 10);
   if (Number.isFinite(retryAfter) && retryAfter >= 0) {
-    return Math.min(retryAfter * 1000, maxDelay);
+    return Math.min(retryAfter * 1000, RATE_LIMIT_BACKOFF_CAP_MS);
   }
 
   const remaining = parseInt(headers['x-ratelimit-remaining'], 10);
   const reset = parseInt(headers['x-ratelimit-reset'], 10);
   if (Number.isFinite(remaining) && remaining <= 0 && Number.isFinite(reset)) {
-    return Math.min(calculateWaitUntilReset(reset, nowMs), maxDelay);
+    return calculateWaitUntilReset(reset, nowMs, RATE_LIMIT_BACKOFF_CAP_MS);
   }
 
   return Math.min(backoffFn(attempt, baseDelay, maxDelay), maxDelay);
@@ -753,6 +914,67 @@ async function withGithubApiRetry(apiCall, options = {}) {
   }
 
   throw lastError || new Error('GitHub API call failed after retries');
+}
+
+function createGithubFetchRequester({
+  token,
+  fetchImpl = globalThis.fetch,
+  apiUrl = process.env.GITHUB_API_URL || 'https://api.github.com',
+  timeoutMs = 15_000,
+} = {}) {
+  if (typeof token !== 'string' || !token) {
+    throw new Error('GitHub API token unavailable');
+  }
+  if (typeof fetchImpl !== 'function') {
+    throw new Error('fetch is unavailable for GitHub API requests');
+  }
+  if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) {
+    throw new Error('GitHub API request timeout must be positive');
+  }
+
+  return async (method, path, body) => {
+    const operation = method === 'GET' ? 'read' : 'write';
+    return withGithubApiRetry(async () => {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), timeoutMs);
+      try {
+        const response = await fetchImpl(`${apiUrl}${path}`, {
+          method,
+          headers: {
+            Accept: 'application/vnd.github+json',
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+            'X-GitHub-Api-Version': '2022-11-28',
+          },
+          body: body === undefined ? undefined : JSON.stringify(body),
+          signal: controller.signal,
+        });
+        const text = await response.text();
+        let data = {};
+        if (text) {
+          try {
+            data = JSON.parse(text);
+          } catch {
+            const error = new Error(
+              `GitHub API ${method} ${path} returned non-JSON content (${response.status})`,
+            );
+            throw attachFetchResponseToError(error, response);
+          }
+        }
+        if (response.ok) return data;
+        const error = new Error(
+          `GitHub API ${method} ${path} failed (${response.status}): ${data.message || 'unknown error'}`,
+        );
+        throw attachFetchResponseToError(error, response);
+      } finally {
+        clearTimeout(timeout);
+      }
+    }, {
+      operation,
+      label: `GitHub API ${method} ${path}`,
+      maxRetriesByOperation: { read: 2, write: 0, dispatch: 0, admin: 0, unknown: 0 },
+    });
+  };
 }
 
 // ===========================================================================
@@ -861,15 +1083,43 @@ async function withBackoff(apiCall, options = {}) {
  * Check current rate limit status and report whether it's safe to proceed.
  */
 async function checkRateLimitStatus(github, options = {}) {
-  const { threshold = RATE_LIMIT_THRESHOLD, core = null, env = process.env } = options;
+  const {
+    threshold = RATE_LIMIT_THRESHOLD,
+    reserveFraction = 0,
+    estimatedCost = 0,
+    core = null,
+    env = process.env,
+    failOpen = false,
+  } = options;
 
   let client = github;
-  try {
-    // Lazy require breaks the github-rate-limited-wrapper <-> this-module cycle.
-    const { ensureRateLimitWrapped } = require('./github-rate-limited-wrapper.js');
-    client = await ensureRateLimitWrapped({ github, core, env });
-  } catch (error) {
-    client = github;
+  let credentialPoolId = null;
+  let tokenSourceReader = null;
+  if (github?.__rateLimitWrapped === true) {
+    credentialPoolId = github.__getTokenSource?.() || null;
+    tokenSourceReader = github.__getTokenSource || null;
+  } else {
+    try {
+      const retry = await createTokenAwareRetry({
+        github,
+        core,
+        env,
+        task: 'rate-limit-preflight',
+      });
+      client = retry.github || github;
+      credentialPoolId = retry.getTokenSource?.() || null;
+      tokenSourceReader = retry.getTokenSource || null;
+    } catch (error) {
+      try {
+        // Lazy require breaks the github-rate-limited-wrapper <-> this-module cycle.
+        const { ensureRateLimitWrapped } = require('./github-rate-limited-wrapper.js');
+        client = await ensureRateLimitWrapped({ github, core, env });
+        credentialPoolId = client.__getTokenSource?.() || null;
+        tokenSourceReader = client.__getTokenSource || null;
+      } catch (wrapError) {
+        client = github;
+      }
+    }
   }
 
   try {
@@ -880,18 +1130,29 @@ async function checkRateLimitStatus(github, options = {}) {
     const resetTimestamp = coreLimit.reset || 0;
     const resetTime = new Date(resetTimestamp * 1000);
 
-    const safe = remaining >= threshold;
+    const normalizedReserve = Math.max(0, Math.min(Number(reserveFraction) || 0, 1));
+    const normalizedEstimate = Math.max(0, Number.parseInt(estimatedCost, 10) || 0);
+    const reserveCalls = Math.ceil(limit * normalizedReserve);
+    const requiredRemaining = Math.max(Number(threshold) || 0, reserveCalls + normalizedEstimate);
+    const safe = remaining >= requiredRemaining;
     const percentUsed = limit > 0 ? Math.round(((limit - remaining) / limit) * 100) : 0;
+    credentialPoolId = tokenSourceReader?.() || credentialPoolId;
 
     const status = {
       safe,
+      state: safe ? 'safe' : 'low',
       remaining,
       limit,
       threshold,
+      reserveFraction: normalizedReserve,
+      reserveCalls,
+      estimatedCost: normalizedEstimate,
+      requiredRemaining,
       percentUsed,
       resetTimestamp,
       resetTime: resetTime.toISOString(),
       waitTimeMs: safe ? 0 : calculateWaitUntilReset(resetTimestamp),
+      credentialPoolId,
     };
 
     if (!safe) {
@@ -899,7 +1160,8 @@ async function checkRateLimitStatus(github, options = {}) {
         core,
         'warning',
         `Rate limit low: ${remaining}/${limit} remaining (${percentUsed}% used). ` +
-          `Threshold: ${threshold}. Resets at ${status.resetTime}`
+          `Required: ${requiredRemaining} (${reserveCalls} reserve + ` +
+          `${normalizedEstimate} forecast). Resets at ${status.resetTime}`
       );
     } else {
       logWithCore(core, 'info', `Rate limit OK: ${remaining}/${limit} remaining (${percentUsed}% used)`);
@@ -911,15 +1173,21 @@ async function checkRateLimitStatus(github, options = {}) {
     logWithCore(core, 'warning', `Failed to check rate limit: ${message}`);
 
     return {
-      safe: true,
+      safe: failOpen,
+      state: failOpen ? 'safe' : 'unknown',
       remaining: -1,
       limit: -1,
       threshold,
+      reserveFraction: Math.max(0, Math.min(Number(reserveFraction) || 0, 1)),
+      reserveCalls: -1,
+      estimatedCost: Math.max(0, Number.parseInt(estimatedCost, 10) || 0),
+      requiredRemaining: -1,
       percentUsed: -1,
       resetTimestamp: 0,
       resetTime: '',
       waitTimeMs: 0,
       error: message,
+      credentialPoolId,
     };
   }
 }
@@ -948,6 +1216,7 @@ function createRateLimitAwareClient(github, options = {}) {
 module.exports = {
   isRateLimitError,
   isSecondaryRateLimitError,
+  recordRateLimitIncident,
   withRetry,
   paginateWithRetry,
   createTokenAwareRetry,
@@ -959,6 +1228,7 @@ module.exports = {
   calculateWaitUntilReset,
   computeRetryDelayMs,
   withGithubApiRetry,
+  createGithubFetchRequester,
   // Rate-limit-aware pagination/backoff (former api-helpers.js)
   paginateWithBackoff,
   withBackoff,

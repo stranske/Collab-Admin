@@ -24,7 +24,7 @@ click==8.3.1
     # via
     #   black
     #   streamlit
-coverage==7.16.0
+coverage==7.16.1
     # via pytest-cov
 gitdb==4.0.12
     # via gitpython
@@ -115,7 +115,7 @@ rpds-py==0.30.0
     # via
     #   jsonschema
     #   referencing
-ruff==0.16.7
+ruff==0.16.9
     # via collab-admin (pyproject.toml)
 six==1.17.0
     # via python-dateutil
